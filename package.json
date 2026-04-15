@@ -1,0 +1,22 @@
+{
+  "name": "client1",
+  "version": "1.0.0",
+  "description": "Simplified procedural PHP + MySQL system using Tailwind CSS with crimson-red and white theme.",
+  "main": "index.js",
+  "scripts": {
+    "sync:vendor": "node scripts/sync-vendor.js",
+    "build:ui": "npm run sync:vendor && npm run build:css",
+    "build:css": "tailwindcss -c tailwind.config.js -i ./assets/css/tailwind.input.css -o ./assets/css/tailwind.css --minify",
+    "watch:css": "tailwindcss -c tailwind.config.js -i ./assets/css/tailwind.input.css -o ./assets/css/tailwind.css --watch",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "chart.js": "^4.4.3",
+    "jspdf": "^2.5.1",
+    "tailwindcss": "^3.4.17"
+  }
+}
