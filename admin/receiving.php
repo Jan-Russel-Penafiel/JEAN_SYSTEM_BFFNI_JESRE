@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_role('ADMIN');
+require_role(['RECEIVING', 'ADMIN']);
 
 $pageTitle = 'Receiving Department';
 $activePage = 'receiving';
@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $updatePO = $pdo->prepare("UPDATE purchase_orders SET status = 'STORED' WHERE id = :id");
                     $updatePO->execute(['id' => $purchaseOrderId]);
                 } else {
-                    $updatePO = $pdo->prepare("UPDATE purchase_orders SET status = 'INSPECTED_NOT_OK' WHERE id = :id");
+                    $updatePO = $pdo->prepare("UPDATE purchase_orders SET status = 'RETURNED' WHERE id = :id");
                     $updatePO->execute(['id' => $purchaseOrderId]);
 
                     $returnLog = $pdo->prepare('INSERT INTO storage_logs (product_id, quantity, from_department, action, notes, created_by) VALUES (:product_id, :quantity, :from_department, :action, :notes, :created_by)');
@@ -135,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$purchaseOrders = $pdo->query("SELECT po.*, p.sku, p.product_name FROM purchase_orders po JOIN products p ON p.id = po.product_id WHERE po.status IN ('PENDING','SENT_TO_RECEIVING','INSPECTED_NOT_OK') ORDER BY po.id DESC")->fetchAll();
+$purchaseOrders = $pdo->query("SELECT po.*, p.sku, p.product_name FROM purchase_orders po JOIN products p ON p.id = po.product_id WHERE po.status = 'SENT_TO_RECEIVING' ORDER BY po.id DESC")->fetchAll();
 $reports = $pdo->query('SELECT rr.*, po.po_number, p.sku, p.product_name, u.name AS created_by_name FROM receiving_reports rr JOIN purchase_orders po ON po.id = rr.purchase_order_id JOIN products p ON p.id = po.product_id JOIN users u ON u.id = rr.created_by ORDER BY rr.id DESC')->fetchAll();
 
 include __DIR__ . '/../partials/header.php';

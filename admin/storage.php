@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_role('ADMIN');
+require_role(['STORAGE', 'ADMIN']);
 
 $pageTitle = 'Storage Department';
 $activePage = 'storage';

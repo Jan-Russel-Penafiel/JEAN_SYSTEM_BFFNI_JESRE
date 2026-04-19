@@ -22,7 +22,15 @@ if (!$receipt) {
     exit;
 }
 
-if (($user['role'] ?? '') === 'CASHIER' && (int)$receipt['cashier_id'] !== (int)$user['id']) {
+$role = (string)($user['role'] ?? '');
+$receiptViewerRoles = ['ADMIN', 'ACCOUNTING'];
+
+if ($role === 'CASHIER' && (int)$receipt['cashier_id'] !== (int)$user['id']) {
+    header('Location: ' . app_url('unauthorized.php'));
+    exit;
+}
+
+if ($role !== 'CASHIER' && !in_array($role, $receiptViewerRoles, true)) {
     header('Location: ' . app_url('unauthorized.php'));
     exit;
 }

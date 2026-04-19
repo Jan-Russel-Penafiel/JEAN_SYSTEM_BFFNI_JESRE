@@ -7,10 +7,22 @@ if (!is_logged_in()) {
 }
 
 $user = current_user();
-if (($user['role'] ?? '') === 'ADMIN') {
-    header('Location: ' . app_url('admin/dashboard.php'));
+
+$roleRoutes = [
+    'ADMIN' => 'admin/dashboard.php',
+    'CASHIER' => 'cashier/dashboard.php',
+    'INVENTORY' => 'admin/inventory.php',
+    'PURCHASING' => 'admin/purchasing.php',
+    'RECEIVING' => 'admin/receiving.php',
+    'STORAGE' => 'admin/storage.php',
+    'ACCOUNTING' => 'admin/accounting.php',
+];
+
+$role = (string)($user['role'] ?? '');
+if (isset($roleRoutes[$role])) {
+    header('Location: ' . app_url($roleRoutes[$role]));
     exit;
 }
 
-header('Location: ' . app_url('cashier/dashboard.php'));
+header('Location: ' . app_url('unauthorized.php'));
 exit;

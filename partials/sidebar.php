@@ -7,9 +7,8 @@ if ($role === 'ADMIN') {
 }
 
 $menu = [];
-
-if ($role === 'ADMIN') {
-    $menu = [
+$roleMenus = [
+    'ADMIN' => [
         ['key' => 'admin_dashboard', 'label' => 'Dashboard', 'path' => app_url('admin/dashboard.php')],
         ['key' => 'inventory', 'label' => 'Inventory', 'path' => app_url('admin/inventory.php')],
         ['key' => 'purchasing', 'label' => 'Purchasing', 'path' => app_url('admin/purchasing.php')],
@@ -18,16 +17,33 @@ if ($role === 'ADMIN') {
         ['key' => 'accounting', 'label' => 'Accounting', 'path' => app_url('admin/accounting.php')],
         ['key' => 'products', 'label' => 'Products', 'path' => app_url('admin/products.php')],
         ['key' => 'users', 'label' => 'Users', 'path' => app_url('admin/users.php')],
-    ];
-}
-
-if ($role === 'CASHIER') {
-    $menu = [
+    ],
+    'INVENTORY' => [
+        ['key' => 'inventory', 'label' => 'Inventory', 'path' => app_url('admin/inventory.php')],
+        ['key' => 'products', 'label' => 'Products', 'path' => app_url('admin/products.php')],
+    ],
+    'PURCHASING' => [
+        ['key' => 'purchasing', 'label' => 'Purchasing', 'path' => app_url('admin/purchasing.php')],
+    ],
+    'RECEIVING' => [
+        ['key' => 'receiving', 'label' => 'Receiving', 'path' => app_url('admin/receiving.php')],
+    ],
+    'STORAGE' => [
+        ['key' => 'storage', 'label' => 'Storage', 'path' => app_url('admin/storage.php')],
+    ],
+    'ACCOUNTING' => [
+        ['key' => 'accounting', 'label' => 'Accounting', 'path' => app_url('admin/accounting.php')],
+    ],
+    'CASHIER' => [
         ['key' => 'cashier_dashboard', 'label' => 'Cashier Dashboard', 'path' => app_url('cashier/dashboard.php')],
         ['key' => 'browse_products', 'label' => 'Browse Products', 'path' => app_url('cashier/products.php')],
         ['key' => 'sales_orders', 'label' => 'Sales Orders', 'path' => app_url('cashier/orders.php')],
         ['key' => 'payments', 'label' => 'Payments', 'path' => app_url('cashier/payments.php')],
-    ];
+    ],
+];
+
+if (isset($roleMenus[$role])) {
+    $menu = $roleMenus[$role];
 }
 ?>
 <nav class="fixed left-0 right-0 top-0 z-20 border-b border-brand-100 bg-white/95 backdrop-blur md:hidden">

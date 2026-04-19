@@ -11,7 +11,9 @@ Simplified procedural PHP + MySQL system using Tailwind CSS with crimson-red and
 - JavaScript (simple modal control)
 
 ## Flowchart-Based Modules
-- Authentication: Sign Up / Sign In for Admin and Cashier
+- Authentication:
+  - Public Sign Up creates cashier accounts only
+  - Sign In supports Admin and all department roles
 - Cashier Flow:
   - Dashboard -> Browse Products -> Choose Product -> Order Confirmation
   - Generate Sales Order -> Payment -> Update Stock Records -> End
@@ -77,14 +79,20 @@ Simplified procedural PHP + MySQL system using Tailwind CSS with crimson-red and
 ## Default Accounts
 - Admin: `admin`
 - Cashier: `cashier`
-- Password for both: `password`
+- Inventory: `inventory`
+- Purchasing: `purchasing`
+- Receiving: `receiving`
+- Storage: `storage`
+- Accounting: `accounting`
+- Password for all default accounts: `password`
 
 ## Notes
 - CRUD actions are modal-based across major modules.
 - Payment posting updates stock and creates inventory records.
 - After successful payment, printable receipt opens automatically.
 - Receiving inspection YES/NO path affects storage and purchasing flows.
-- Inventory low stock can notify purchasing and trigger quick PO creation.
+- Inventory module supports flow actions for release item, tag out of stock, notify purchasing, and stock report export (CSV).
+- Purchasing module includes low-stock review, supplier contact/wait loop, delivered YES forwarding to inventory, and notification inbox mark-as-read actions.
 
 ## New Quick Access
 - Cashier and admin receipt view: `/client1/receipt.php?payment_id=PAYMENT_ID`
@@ -93,3 +101,7 @@ Simplified procedural PHP + MySQL system using Tailwind CSS with crimson-red and
 - New installs already use `username` in `users` table.
 - For existing databases using `email`, run migration SQL once:
   - `migrations/2026_04_15_email_to_username.sql`
+
+## Migration Note (Department Roles)
+- For existing databases, run this migration SQL once to enable department-specific roles:
+  - `migrations/2026_04_15_department_roles_and_defaults.sql`

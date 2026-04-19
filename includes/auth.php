@@ -13,6 +13,16 @@ function current_user()
     return $_SESSION['user'] ?? null;
 }
 
+function app_roles()
+{
+    return ['ADMIN', 'CASHIER', 'INVENTORY', 'PURCHASING', 'RECEIVING', 'STORAGE', 'ACCOUNTING'];
+}
+
+function is_valid_role($role)
+{
+    return in_array((string)$role, app_roles(), true);
+}
+
 function require_login()
 {
     if (!is_logged_in()) {
@@ -26,7 +36,10 @@ function require_role($role)
     require_login();
 
     $user = current_user();
-    if (($user['role'] ?? '') !== $role) {
+    $currentRole = (string)($user['role'] ?? '');
+    $allowedRoles = is_array($role) ? array_values($role) : [$role];
+
+    if (!in_array($currentRole, $allowedRoles, true)) {
         header('Location: ' . app_url('unauthorized.php'));
         exit;
     }

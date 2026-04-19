@@ -5,6 +5,16 @@ require_role('ADMIN');
 $pageTitle = 'User Management';
 $activePage = 'users';
 $current = current_user();
+$allowedRoles = app_roles();
+$roleLabels = [
+    'ADMIN' => 'Admin',
+    'CASHIER' => 'Cashier',
+    'INVENTORY' => 'Inventory',
+    'PURCHASING' => 'Purchasing',
+    'RECEIVING' => 'Receiving',
+    'STORAGE' => 'Storage',
+    'ACCOUNTING' => 'Accounting',
+];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -13,7 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name = trim($_POST['name'] ?? '');
         $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
-        $role = ($_POST['role'] ?? 'CASHIER') === 'ADMIN' ? 'ADMIN' : 'CASHIER';
+        $selectedRole = strtoupper(trim((string)($_POST['role'] ?? 'CASHIER')));
+        $role = in_array($selectedRole, $allowedRoles, true) ? $selectedRole : 'CASHIER';
 
         if ($name === '' || !preg_match('/^[A-Za-z0-9_]{3,30}$/', $username) || strlen($password) < 6) {
             flash_set('error', 'Please provide valid name, username, and password (min 6 characters).');
@@ -39,7 +50,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)($_POST['id'] ?? 0);
         $name = trim($_POST['name'] ?? '');
         $username = trim($_POST['username'] ?? '');
-        $role = ($_POST['role'] ?? 'CASHIER') === 'ADMIN' ? 'ADMIN' : 'CASHIER';
+        $selectedRole = strtoupper(trim((string)($_POST['role'] ?? 'CASHIER')));
+        $role = in_array($selectedRole, $allowedRoles, true) ? $selectedRole : 'CASHIER';
 
         if ($id <= 0 || $name === '' || !preg_match('/^[A-Za-z0-9_]{3,30}$/', $username)) {
             flash_set('error', 'Invalid update request.');
@@ -99,7 +111,7 @@ include __DIR__ . '/../partials/header.php';
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h2 class="text-2xl font-bold text-brand-700">Users</h2>
-            <p class="text-sm text-slate-500">Manage Admin and Cashier accounts.</p>
+            <p class="text-sm text-slate-500">Manage admin and department user accounts.</p>
         </div>
         <button data-modal-open="create-user-modal" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Create User</button>
     </div>
@@ -160,8 +172,9 @@ include __DIR__ . '/../partials/header.php';
             <div>
                 <label class="text-sm text-slate-600">Role</label>
                 <select name="role" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2">
-                    <option value="ADMIN">Admin</option>
-                    <option value="CASHIER">Cashier</option>
+                    <?php foreach ($allowedRoles as $allowedRole): ?>
+                        <option value="<?= e($allowedRole); ?>" <?= $allowedRole === 'CASHIER' ? 'selected' : ''; ?>><?= e($roleLabels[$allowedRole] ?? $allowedRole); ?></option>
+                    <?php endforeach; ?>
                 </select>
             </div>
             <div>
@@ -209,8 +222,9 @@ include __DIR__ . '/../partials/header.php';
                 <div>
                     <label class="text-sm text-slate-600">Role</label>
                     <select name="role" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2">
-                        <option value="ADMIN" <?= $u['role'] === 'ADMIN' ? 'selected' : ''; ?>>Admin</option>
-                        <option value="CASHIER" <?= $u['role'] === 'CASHIER' ? 'selected' : ''; ?>>Cashier</option>
+                        <?php foreach ($allowedRoles as $allowedRole): ?>
+                            <option value="<?= e($allowedRole); ?>" <?= $u['role'] === $allowedRole ? 'selected' : ''; ?>><?= e($roleLabels[$allowedRole] ?? $allowedRole); ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 <div>

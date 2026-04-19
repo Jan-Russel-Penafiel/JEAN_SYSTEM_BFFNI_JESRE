@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     name VARCHAR(120) NOT NULL,
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    role ENUM('ADMIN','CASHIER') NOT NULL,
+    role ENUM('ADMIN','CASHIER','INVENTORY','PURCHASING','RECEIVING','STORAGE','ACCOUNTING') NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -134,6 +134,26 @@ WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'admin');
 INSERT INTO users (name, username, password, role)
 SELECT 'Main Cashier', 'cashier', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'CASHIER'
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'cashier');
+
+INSERT INTO users (name, username, password, role)
+SELECT 'Inventory Officer', 'inventory', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'INVENTORY'
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'inventory');
+
+INSERT INTO users (name, username, password, role)
+SELECT 'Purchasing Officer', 'purchasing', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'PURCHASING'
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'purchasing');
+
+INSERT INTO users (name, username, password, role)
+SELECT 'Receiving Officer', 'receiving', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'RECEIVING'
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'receiving');
+
+INSERT INTO users (name, username, password, role)
+SELECT 'Storage Officer', 'storage', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'STORAGE'
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'storage');
+
+INSERT INTO users (name, username, password, role)
+SELECT 'Accounting Officer', 'accounting', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ACCOUNTING'
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'accounting');
 
 INSERT INTO products (sku, product_name, description, price, stock_qty, reorder_level)
 SELECT 'JZ-001', 'Laundry Detergent 1kg', 'Household cleaning item', 85.00, 120, 20

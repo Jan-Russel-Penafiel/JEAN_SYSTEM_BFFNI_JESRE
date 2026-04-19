@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
             <h2 class="text-2xl font-bold text-brand-700">Sign In</h2>
-            <p class="mt-1 text-sm text-slate-500">Access Admin or Cashier dashboard.</p>
+            <p class="mt-1 text-sm text-slate-500">Access your assigned department dashboard.</p>
 
             <?php if ($errors): ?>
                 <div class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

@@ -7,7 +7,7 @@ $activePage = 'admin_dashboard';
 
 $totalProducts = (int)$pdo->query('SELECT COUNT(*) FROM products')->fetchColumn();
 $lowProducts = (int)$pdo->query('SELECT COUNT(*) FROM products WHERE stock_qty <= reorder_level')->fetchColumn();
-$pendingPO = (int)$pdo->query("SELECT COUNT(*) FROM purchase_orders WHERE status IN ('PENDING','SENT_TO_RECEIVING','INSPECTED_NOT_OK')")->fetchColumn();
+$pendingPO = (int)$pdo->query("SELECT COUNT(*) FROM purchase_orders WHERE status IN ('PENDING','SENT_TO_RECEIVING','RETURNED','INSPECTED_NOT_OK')")->fetchColumn();
 $totalSales = (float)$pdo->query("SELECT COALESCE(SUM(total_amount),0) FROM sales_orders WHERE payment_status = 'PAID'")->fetchColumn();
 $totalExpenses = (float)$pdo->query('SELECT COALESCE(SUM(amount),0) FROM accounting_expenses')->fetchColumn();
 $netIncome = $totalSales - $totalExpenses;

@@ -1,10 +1,36 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_role('ADMIN');
+require_role(['INVENTORY', 'ADMIN']);
 
 $pageTitle = 'Inventory Department';
 $activePage = 'inventory';
 $user = current_user();
+
+if (($_GET['export'] ?? '') === 'stock_report_csv') {
+    $reportRows = $pdo->query("SELECT sku, product_name, stock_qty, reorder_level, CASE WHEN stock_qty <= 0 THEN 'OUT_OF_STOCK' WHEN stock_qty <= reorder_level THEN 'LOW_STOCK' ELSE 'AVAILABLE' END AS stock_status FROM products ORDER BY product_name ASC")->fetchAll();
+
+    $filename = 'inventory-stock-status-' . date('Y-m-d') . '.csv';
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+    $output = fopen('php://output', 'w');
+    fputcsv($output, ['Generated At', date('Y-m-d H:i:s')]);
+    fputcsv($output, []);
+    fputcsv($output, ['SKU', 'Product Name', 'Stock Qty', 'Reorder Level', 'Stock Status']);
+
+    foreach ($reportRows as $row) {
+        fputcsv($output, [
+            $row['sku'],
+            $row['product_name'],
+            (int)$row['stock_qty'],
+            (int)$row['reorder_level'],
+            $row['stock_status'],
+        ]);
+    }
+
+    fclose($output);
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -66,6 +92,144 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $pdo->rollBack();
                     flash_set('error', 'Failed to create inventory record.');
                 }
+            }
+        }
+
+        header('Location: ' . app_url('admin/inventory.php'));
+        exit;
+    }
+
+    if ($action === 'release_item') {
+        $productId = (int)($_POST['product_id'] ?? 0);
+        $quantity = (int)($_POST['quantity'] ?? 0);
+        $remarks = trim($_POST['remarks'] ?? '');
+
+        $productStmt = $pdo->prepare('SELECT * FROM products WHERE id = :id LIMIT 1');
+        $productStmt->execute(['id' => $productId]);
+        $product = $productStmt->fetch();
+
+        if (!$product || $quantity <= 0) {
+            flash_set('error', 'Invalid release item request.');
+        } else {
+            $qtyBefore = (int)$product['stock_qty'];
+            $qtyAfter = $qtyBefore - $quantity;
+
+            if ($qtyAfter < 0) {
+                flash_set('error', 'Release quantity exceeds available stock.');
+            } else {
+                $pdo->beginTransaction();
+                try {
+                    $updateProduct = $pdo->prepare('UPDATE products SET stock_qty = :stock_qty WHERE id = :id');
+                    $updateProduct->execute([
+                        'stock_qty' => $qtyAfter,
+                        'id' => $productId,
+                    ]);
+
+                    $insertRecord = $pdo->prepare('INSERT INTO inventory_records (product_id, department, change_type, availability_status, item_check_status, qty_before, qty_change, qty_after, remarks, created_by) VALUES (:product_id, :department, :change_type, :availability_status, :item_check_status, :qty_before, :qty_change, :qty_after, :remarks, :created_by)');
+                    $insertRecord->execute([
+                        'product_id' => $productId,
+                        'department' => 'INVENTORY',
+                        'change_type' => 'STORAGE_OUT',
+                        'availability_status' => $qtyAfter > 0 ? 'YES' : 'NO',
+                        'item_check_status' => null,
+                        'qty_before' => $qtyBefore,
+                        'qty_change' => -$quantity,
+                        'qty_after' => $qtyAfter,
+                        'remarks' => $remarks !== '' ? $remarks : 'Released item and updated stock.',
+                        'created_by' => $user['id'],
+                    ]);
+
+                    $store = $pdo->prepare('INSERT INTO storage_logs (product_id, quantity, from_department, action, notes, created_by) VALUES (:product_id, :quantity, :from_department, :action, :notes, :created_by)');
+                    $store->execute([
+                        'product_id' => $productId,
+                        'quantity' => $quantity,
+                        'from_department' => 'INVENTORY',
+                        'action' => 'STORE',
+                        'notes' => 'Release item flow recorded in storage.',
+                        'created_by' => $user['id'],
+                    ]);
+
+                    if ($qtyAfter <= (int)$product['reorder_level']) {
+                        $notify = $pdo->prepare('INSERT INTO department_notifications (target_department, message, status) VALUES (:target_department, :message, :status)');
+                        $notify->execute([
+                            'target_department' => 'PURCHASING',
+                            'message' => 'Low stock after release item for ' . $product['product_name'] . ' (SKU ' . $product['sku'] . ').',
+                            'status' => 'PENDING',
+                        ]);
+                    }
+
+                    $pdo->commit();
+                    flash_set('success', 'Item released and stock updated.');
+                } catch (Exception $e) {
+                    $pdo->rollBack();
+                    flash_set('error', 'Failed to release item.');
+                }
+            }
+        }
+
+        header('Location: ' . app_url('admin/inventory.php'));
+        exit;
+    }
+
+    if ($action === 'tag_out_of_stock') {
+        $productId = (int)($_POST['product_id'] ?? 0);
+        $remarks = trim($_POST['remarks'] ?? '');
+
+        $productStmt = $pdo->prepare('SELECT * FROM products WHERE id = :id LIMIT 1');
+        $productStmt->execute(['id' => $productId]);
+        $product = $productStmt->fetch();
+
+        if (!$product) {
+            flash_set('error', 'Invalid out-of-stock request.');
+        } else {
+            $qtyBefore = (int)$product['stock_qty'];
+            $qtyAfter = 0;
+            $qtyChange = -$qtyBefore;
+
+            $pdo->beginTransaction();
+            try {
+                $updateProduct = $pdo->prepare('UPDATE products SET stock_qty = :stock_qty WHERE id = :id');
+                $updateProduct->execute([
+                    'stock_qty' => $qtyAfter,
+                    'id' => $productId,
+                ]);
+
+                $insertRecord = $pdo->prepare('INSERT INTO inventory_records (product_id, department, change_type, availability_status, item_check_status, qty_before, qty_change, qty_after, remarks, created_by) VALUES (:product_id, :department, :change_type, :availability_status, :item_check_status, :qty_before, :qty_change, :qty_after, :remarks, :created_by)');
+                $insertRecord->execute([
+                    'product_id' => $productId,
+                    'department' => 'INVENTORY',
+                    'change_type' => 'ADJUSTMENT',
+                    'availability_status' => 'NO',
+                    'item_check_status' => null,
+                    'qty_before' => $qtyBefore,
+                    'qty_change' => $qtyChange,
+                    'qty_after' => $qtyAfter,
+                    'remarks' => $remarks !== '' ? $remarks : 'Tagged as out of stock.',
+                    'created_by' => $user['id'],
+                ]);
+
+                $store = $pdo->prepare('INSERT INTO storage_logs (product_id, quantity, from_department, action, notes, created_by) VALUES (:product_id, :quantity, :from_department, :action, :notes, :created_by)');
+                $store->execute([
+                    'product_id' => $productId,
+                    'quantity' => max($qtyBefore, 0),
+                    'from_department' => 'INVENTORY',
+                    'action' => 'STORE',
+                    'notes' => 'Out-of-stock flow recorded in storage.',
+                    'created_by' => $user['id'],
+                ]);
+
+                $notify = $pdo->prepare('INSERT INTO department_notifications (target_department, message, status) VALUES (:target_department, :message, :status)');
+                $notify->execute([
+                    'target_department' => 'PURCHASING',
+                    'message' => 'Product tagged out of stock: ' . $product['product_name'] . ' (SKU ' . $product['sku'] . ').',
+                    'status' => 'PENDING',
+                ]);
+
+                $pdo->commit();
+                flash_set('success', 'Product tagged as out of stock and purchasing notified.');
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                flash_set('error', 'Failed to tag product as out of stock.');
             }
         }
 
@@ -181,9 +345,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . app_url('admin/inventory.php'));
         exit;
     }
+
+    if ($action === 'receive_delivered_items') {
+        $purchaseOrderId = (int)($_POST['purchase_order_id'] ?? 0);
+        $receivedQty = (int)($_POST['received_qty'] ?? 0);
+
+        $poStmt = $pdo->prepare('SELECT po.*, p.sku, p.product_name, p.stock_qty FROM purchase_orders po JOIN products p ON p.id = po.product_id WHERE po.id = :id LIMIT 1');
+        $poStmt->execute(['id' => $purchaseOrderId]);
+        $purchaseOrder = $poStmt->fetch();
+
+        if (!$purchaseOrder || $receivedQty <= 0) {
+            flash_set('error', 'Invalid delivered-items request.');
+        } elseif (($purchaseOrder['status'] ?? '') !== 'SENT_TO_RECEIVING') {
+            flash_set('error', 'Purchase order is no longer waiting for inventory receiving.');
+        } else {
+            $qtyBefore = (int)$purchaseOrder['stock_qty'];
+            $qtyAfter = $qtyBefore + $receivedQty;
+
+            $pdo->beginTransaction();
+            try {
+                $updateProduct = $pdo->prepare('UPDATE products SET stock_qty = :stock_qty WHERE id = :id');
+                $updateProduct->execute([
+                    'stock_qty' => $qtyAfter,
+                    'id' => $purchaseOrder['product_id'],
+                ]);
+
+                $insertRecord = $pdo->prepare('INSERT INTO inventory_records (product_id, department, change_type, availability_status, item_check_status, qty_before, qty_change, qty_after, remarks, created_by) VALUES (:product_id, :department, :change_type, :availability_status, :item_check_status, :qty_before, :qty_change, :qty_after, :remarks, :created_by)');
+                $insertRecord->execute([
+                    'product_id' => $purchaseOrder['product_id'],
+                    'department' => 'INVENTORY',
+                    'change_type' => 'PURCHASE',
+                    'availability_status' => 'YES',
+                    'item_check_status' => 'YES',
+                    'qty_before' => $qtyBefore,
+                    'qty_change' => $receivedQty,
+                    'qty_after' => $qtyAfter,
+                    'remarks' => 'Received delivered items for PO ' . $purchaseOrder['po_number'],
+                    'created_by' => $user['id'],
+                ]);
+
+                $store = $pdo->prepare('INSERT INTO storage_logs (product_id, quantity, from_department, action, notes, created_by) VALUES (:product_id, :quantity, :from_department, :action, :notes, :created_by)');
+                $store->execute([
+                    'product_id' => $purchaseOrder['product_id'],
+                    'quantity' => $receivedQty,
+                    'from_department' => 'INVENTORY',
+                    'action' => 'STORE',
+                    'notes' => 'Delivered items received by inventory and recorded to storage.',
+                    'created_by' => $user['id'],
+                ]);
+
+                $updatePO = $pdo->prepare("UPDATE purchase_orders SET status = 'STORED' WHERE id = :id AND status = 'SENT_TO_RECEIVING'");
+                $updatePO->execute(['id' => $purchaseOrderId]);
+
+                $pdo->commit();
+                flash_set('success', 'Delivered items received, stock updated, and purchase status moved to STORED.');
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                flash_set('error', 'Failed to process delivered items in inventory.');
+            }
+        }
+
+        header('Location: ' . app_url('admin/inventory.php'));
+        exit;
+    }
 }
 
 $products = $pdo->query('SELECT * FROM products ORDER BY product_name ASC')->fetchAll();
+$incomingPurchaseOrders = $pdo->query("SELECT po.id, po.po_number, po.quantity, po.status, p.sku, p.product_name FROM purchase_orders po JOIN products p ON p.id = po.product_id WHERE po.status = 'SENT_TO_RECEIVING' ORDER BY po.id DESC")->fetchAll();
 $records = $pdo->query('SELECT ir.*, p.product_name, p.sku, u.name AS created_by_name FROM inventory_records ir JOIN products p ON p.id = ir.product_id JOIN users u ON u.id = ir.created_by ORDER BY ir.id DESC LIMIT 100')->fetchAll();
 
 include __DIR__ . '/../partials/header.php';
@@ -192,9 +420,10 @@ include __DIR__ . '/../partials/header.php';
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h2 class="text-2xl font-bold text-brand-700">Inventory Department</h2>
-            <p class="text-sm text-slate-500">Record data, check availability, and route items to storage or purchasing.</p>
+            <p class="text-sm text-slate-500">Open inventory dashboard, check stock availability, release item, tag out of stock, and update stock records.</p>
         </div>
         <div class="flex flex-wrap gap-2">
+            <a href="<?= e(app_url('admin/inventory.php')); ?>?export=stock_report_csv" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Export Stock Report</a>
             <button data-modal-open="record-inventory-modal" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Record Data</button>
             <button data-modal-open="quick-po-modal" class="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900">Create Purchase Order</button>
         </div>
@@ -231,7 +460,10 @@ include __DIR__ . '/../partials/header.php';
                     <td class="py-2">
                         <div class="flex flex-wrap gap-2">
                             <?php if ($isAvailable): ?>
-                                <button data-modal-open="send-storage-<?= (int)$product['id']; ?>" class="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Send to Storage</button>
+                                <button data-modal-open="release-item-<?= (int)$product['id']; ?>" class="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Release Item</button>
+                                <button data-modal-open="send-storage-<?= (int)$product['id']; ?>" class="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">Record Storage</button>
+                            <?php else: ?>
+                                <button data-modal-open="tag-out-<?= (int)$product['id']; ?>" class="rounded-md bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700">Tag as Out of Stock</button>
                             <?php endif; ?>
                             <?php if (!$isAvailable || $isLow): ?>
                                 <button data-modal-open="notify-<?= (int)$product['id']; ?>" class="rounded-md bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">Notify Purchasing</button>
@@ -241,6 +473,43 @@ include __DIR__ . '/../partials/header.php';
                     </td>
                 </tr>
             <?php endforeach; ?>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="rounded-xl border border-brand-100 bg-white p-4 overflow-x-auto">
+        <h3 class="text-base font-semibold text-brand-700 mb-3">Received Delivered Items</h3>
+        <table class="min-w-full text-sm">
+            <thead>
+            <tr class="border-b border-slate-100 text-left text-slate-500">
+                <th class="py-2 pr-3">PO #</th>
+                <th class="py-2 pr-3">Product</th>
+                <th class="py-2 pr-3">Ordered Qty</th>
+                <th class="py-2 pr-3">Status</th>
+                <th class="py-2">Action</th>
+            </tr>
+            </thead>
+            <tbody>
+            <?php if (!$incomingPurchaseOrders): ?>
+                <tr><td class="py-3 text-slate-500" colspan="5">No delivered purchase orders waiting for inventory receiving.</td></tr>
+            <?php else: ?>
+                <?php foreach ($incomingPurchaseOrders as $purchaseOrder): ?>
+                    <tr class="border-b border-slate-50">
+                        <td class="py-2 pr-3 font-medium text-slate-700"><?= e($purchaseOrder['po_number']); ?></td>
+                        <td class="py-2 pr-3"><?= e($purchaseOrder['sku']); ?> - <?= e($purchaseOrder['product_name']); ?></td>
+                        <td class="py-2 pr-3"><?= (int)$purchaseOrder['quantity']; ?></td>
+                        <td class="py-2 pr-3"><span class="rounded-full px-2 py-1 text-xs font-semibold <?= e(status_badge_class($purchaseOrder['status'])); ?>"><?= e($purchaseOrder['status']); ?></span></td>
+                        <td class="py-2">
+                            <form method="post" class="flex flex-wrap items-center gap-2">
+                                <input type="hidden" name="action" value="receive_delivered_items">
+                                <input type="hidden" name="purchase_order_id" value="<?= (int)$purchaseOrder['id']; ?>">
+                                <input type="number" min="1" max="<?= (int)$purchaseOrder['quantity']; ?>" name="received_qty" value="<?= (int)$purchaseOrder['quantity']; ?>" class="w-24 rounded-md border border-slate-200 px-2 py-1 text-xs" required>
+                                <button type="submit" class="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Add Stock & Update Status</button>
+                            </form>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
             </tbody>
         </table>
     </section>
@@ -355,6 +624,48 @@ include __DIR__ . '/../partials/header.php';
 </div>
 
 <?php foreach ($products as $product): ?>
+    <div id="release-item-<?= (int)$product['id']; ?>" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
+        <div class="w-full max-w-md rounded-xl bg-white p-6">
+            <h3 class="text-lg font-semibold text-emerald-700">Release Item</h3>
+            <p class="mt-1 text-sm text-slate-500">Release available stock and update inventory records.</p>
+            <form method="post" class="mt-4 space-y-3">
+                <input type="hidden" name="action" value="release_item">
+                <input type="hidden" name="product_id" value="<?= (int)$product['id']; ?>">
+                <div>
+                    <label class="text-sm text-slate-600">Quantity</label>
+                    <input type="number" min="1" max="<?= (int)$product['stock_qty']; ?>" name="quantity" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" required>
+                </div>
+                <div>
+                    <label class="text-sm text-slate-600">Remarks</label>
+                    <textarea name="remarks" rows="2" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"></textarea>
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" data-modal-close class="rounded-lg border border-slate-200 px-4 py-2 text-sm">Cancel</button>
+                    <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Release</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="tag-out-<?= (int)$product['id']; ?>" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
+        <div class="w-full max-w-md rounded-xl bg-white p-6">
+            <h3 class="text-lg font-semibold text-rose-700">Tag as Out of Stock</h3>
+            <p class="mt-2 text-sm text-slate-600">Mark <span class="font-semibold"><?= e($product['product_name']); ?></span> as out of stock and notify purchasing?</p>
+            <form method="post" class="mt-4 space-y-3">
+                <input type="hidden" name="action" value="tag_out_of_stock">
+                <input type="hidden" name="product_id" value="<?= (int)$product['id']; ?>">
+                <div>
+                    <label class="text-sm text-slate-600">Remarks</label>
+                    <textarea name="remarks" rows="2" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"></textarea>
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" data-modal-close class="rounded-lg border border-slate-200 px-4 py-2 text-sm">Cancel</button>
+                    <button type="submit" class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white">Tag Out of Stock</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="notify-<?= (int)$product['id']; ?>" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
         <div class="w-full max-w-md rounded-xl bg-white p-6">
             <h3 class="text-lg font-semibold text-amber-700">Notify Purchasing</h3>
@@ -370,7 +681,7 @@ include __DIR__ . '/../partials/header.php';
 
     <div id="send-storage-<?= (int)$product['id']; ?>" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
         <div class="w-full max-w-md rounded-xl bg-white p-6">
-            <h3 class="text-lg font-semibold text-emerald-700">Send to Storage</h3>
+            <h3 class="text-lg font-semibold text-emerald-700">Record Storage</h3>
             <form method="post" class="mt-4 space-y-3">
                 <input type="hidden" name="action" value="send_to_storage">
                 <input type="hidden" name="product_id" value="<?= (int)$product['id']; ?>">
