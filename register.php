@@ -10,13 +10,26 @@ $errors = [];
 $name = '';
 $username = '';
 $role = 'CASHIER';
+$roleOptions = array_values(array_filter(app_roles(), static function ($allowedRole) {
+    return $allowedRole !== 'ADMIN';
+}));
+
+$roleLabels = [
+    'CASHIER' => 'Cashier',
+    'INVENTORY' => 'Inventory',
+    'PURCHASING' => 'Purchasing',
+    'RECEIVING' => 'Receiving',
+    'STORAGE' => 'Storage',
+    'ACCOUNTING' => 'Accounting',
+];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim($_POST['name'] ?? '');
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirmPassword = $_POST['confirm_password'] ?? '';
-    $role = 'CASHIER';
+    $selectedRole = strtoupper(trim((string)($_POST['role'] ?? 'CASHIER')));
+    $role = in_array($selectedRole, $roleOptions, true) ? $selectedRole : 'CASHIER';
 
     if ($name === '' || $username === '' || $password === '') {
         $errors[] = 'Name, username, and password are required.';
@@ -66,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <div class="min-h-screen flex items-center justify-center p-6">
     <div class="w-full max-w-lg rounded-2xl bg-white border border-brand-100 p-8 shadow-xl shadow-brand-100/40">
         <h1 class="text-2xl font-bold text-brand-700">Sign Up</h1>
-        <p class="mt-1 text-sm text-slate-500">Create a cashier account.</p>
+        <p class="mt-1 text-sm text-slate-500">Create an account for your assigned department.</p>
 
         <?php if ($errors): ?>
             <div class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -83,7 +96,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <label for="username" class="block text-sm font-medium text-slate-600">Username</label>
                 <input id="username" name="username" type="text" value="<?= e($username); ?>" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-100" required>
             </div>
-            <input type="hidden" name="role" value="CASHIER">
+            <div>
+                <label for="role" class="block text-sm font-medium text-slate-600">Department</label>
+                <select id="role" name="role" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-100" required>
+                    <?php foreach ($roleOptions as $option): ?>
+                        <option value="<?= e($option); ?>" <?= $role === $option ? 'selected' : ''; ?>><?= e($roleLabels[$option] ?? $option); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
             <div class="grid md:grid-cols-2 gap-4">
                 <div>
                     <label for="password" class="block text-sm font-medium text-slate-600">Password</label>

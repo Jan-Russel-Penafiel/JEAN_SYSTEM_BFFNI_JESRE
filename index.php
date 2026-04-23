@@ -10,12 +10,12 @@ $user = current_user();
 
 $roleRoutes = [
     'ADMIN' => 'admin/dashboard.php',
-    'CASHIER' => 'cashier/dashboard.php',
-    'INVENTORY' => 'admin/inventory.php',
-    'PURCHASING' => 'admin/purchasing.php',
-    'RECEIVING' => 'admin/receiving.php',
-    'STORAGE' => 'admin/storage.php',
-    'ACCOUNTING' => 'admin/accounting.php',
+    'CASHIER' => 'department/dashboard.php',
+    'INVENTORY' => 'department/dashboard.php',
+    'PURCHASING' => 'department/dashboard.php',
+    'RECEIVING' => 'department/dashboard.php',
+    'STORAGE' => 'department/dashboard.php',
+    'ACCOUNTING' => 'department/dashboard.php',
 ];
 
 $role = (string)($user['role'] ?? '');

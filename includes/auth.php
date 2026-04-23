@@ -18,9 +18,14 @@ function app_roles()
     return ['ADMIN', 'CASHIER', 'INVENTORY', 'PURCHASING', 'RECEIVING', 'STORAGE', 'ACCOUNTING'];
 }
 
+function normalize_role($role)
+{
+    return strtoupper(trim((string)$role));
+}
+
 function is_valid_role($role)
 {
-    return in_array((string)$role, app_roles(), true);
+    return in_array(normalize_role($role), app_roles(), true);
 }
 
 function require_login()
@@ -36,8 +41,9 @@ function require_role($role)
     require_login();
 
     $user = current_user();
-    $currentRole = (string)($user['role'] ?? '');
+    $currentRole = normalize_role($user['role'] ?? '');
     $allowedRoles = is_array($role) ? array_values($role) : [$role];
+    $allowedRoles = array_map('normalize_role', $allowedRoles);
 
     if (!in_array($currentRole, $allowedRoles, true)) {
         header('Location: ' . app_url('unauthorized.php'));
@@ -51,8 +57,37 @@ function login_user($user)
         'id' => (int)$user['id'],
         'name' => $user['name'],
         'username' => $user['username'],
-        'role' => $user['role'],
+        'role' => normalize_role($user['role'] ?? ''),
     ];
+}
+
+function ensure_department_accounts(PDO $pdo)
+{
+    $defaultPasswordHash = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi';
+    $defaults = [
+        ['name' => 'Inventory Officer', 'username' => 'inventory', 'role' => 'INVENTORY'],
+        ['name' => 'Purchasing Officer', 'username' => 'purchasing', 'role' => 'PURCHASING'],
+        ['name' => 'Receiving Officer', 'username' => 'receiving', 'role' => 'RECEIVING'],
+        ['name' => 'Storage Officer', 'username' => 'storage', 'role' => 'STORAGE'],
+        ['name' => 'Accounting Officer', 'username' => 'accounting', 'role' => 'ACCOUNTING'],
+    ];
+
+    $checkStmt = $pdo->prepare('SELECT id FROM users WHERE username = :username LIMIT 1');
+    $insertStmt = $pdo->prepare('INSERT INTO users (name, username, password, role) VALUES (:name, :username, :password, :role)');
+
+    foreach ($defaults as $account) {
+        $checkStmt->execute(['username' => $account['username']]);
+        if ($checkStmt->fetch()) {
+            continue;
+        }
+
+        $insertStmt->execute([
+            'name' => $account['name'],
+            'username' => $account['username'],
+            'password' => $defaultPasswordHash,
+            'role' => $account['role'],
+        ]);
+    }
 }
 
 function logout_user()

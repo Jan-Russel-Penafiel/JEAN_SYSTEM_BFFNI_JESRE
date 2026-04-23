@@ -16,6 +16,16 @@ $roleLabels = [
     'ACCOUNTING' => 'Accounting',
 ];
 
+$roleBadgeClasses = [
+    'ADMIN' => 'bg-brand-100 text-brand-700',
+    'CASHIER' => 'bg-emerald-100 text-emerald-700',
+    'INVENTORY' => 'bg-sky-100 text-sky-700',
+    'PURCHASING' => 'bg-violet-100 text-violet-700',
+    'RECEIVING' => 'bg-amber-100 text-amber-700',
+    'STORAGE' => 'bg-cyan-100 text-cyan-700',
+    'ACCOUNTING' => 'bg-rose-100 text-rose-700',
+];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
@@ -136,8 +146,9 @@ include __DIR__ . '/../partials/header.php';
                         <td class="py-3 pr-3 font-medium text-slate-700"><?= e($u['name']); ?></td>
                         <td class="py-3 pr-3"><?= e($u['username']); ?></td>
                         <td class="py-3 pr-3">
-                            <span class="rounded-full px-2 py-1 text-xs font-semibold <?= $u['role'] === 'ADMIN' ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-700'; ?>">
-                                <?= e($u['role']); ?>
+                            <?php $badgeClass = $roleBadgeClasses[$u['role']] ?? 'bg-slate-100 text-slate-700'; ?>
+                            <span class="rounded-full px-2 py-1 text-xs font-semibold <?= e($badgeClass); ?>">
+                                <?= e($roleLabels[$u['role']] ?? $u['role']); ?>
                             </span>
                         </td>
                         <td class="py-3 pr-3"><?= e(date('Y-m-d', strtotime($u['created_at']))); ?></td>

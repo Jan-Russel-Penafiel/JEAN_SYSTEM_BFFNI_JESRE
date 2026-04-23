@@ -15,4 +15,6 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/db.php';
 
+ensure_department_accounts($pdo);
+
 date_default_timezone_set((string)config('app.timezone', 'Asia/Manila'));

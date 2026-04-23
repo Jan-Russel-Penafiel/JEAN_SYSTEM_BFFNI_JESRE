@@ -19,22 +19,28 @@ $roleMenus = [
         ['key' => 'users', 'label' => 'Users', 'path' => app_url('admin/users.php')],
     ],
     'INVENTORY' => [
+        ['key' => 'department_home', 'label' => 'Department Home', 'path' => app_url('department/dashboard.php')],
         ['key' => 'inventory', 'label' => 'Inventory', 'path' => app_url('admin/inventory.php')],
         ['key' => 'products', 'label' => 'Products', 'path' => app_url('admin/products.php')],
     ],
     'PURCHASING' => [
+        ['key' => 'department_home', 'label' => 'Department Home', 'path' => app_url('department/dashboard.php')],
         ['key' => 'purchasing', 'label' => 'Purchasing', 'path' => app_url('admin/purchasing.php')],
     ],
     'RECEIVING' => [
+        ['key' => 'department_home', 'label' => 'Department Home', 'path' => app_url('department/dashboard.php')],
         ['key' => 'receiving', 'label' => 'Receiving', 'path' => app_url('admin/receiving.php')],
     ],
     'STORAGE' => [
+        ['key' => 'department_home', 'label' => 'Department Home', 'path' => app_url('department/dashboard.php')],
         ['key' => 'storage', 'label' => 'Storage', 'path' => app_url('admin/storage.php')],
     ],
     'ACCOUNTING' => [
+        ['key' => 'department_home', 'label' => 'Department Home', 'path' => app_url('department/dashboard.php')],
         ['key' => 'accounting', 'label' => 'Accounting', 'path' => app_url('admin/accounting.php')],
     ],
     'CASHIER' => [
+        ['key' => 'department_home', 'label' => 'Department Home', 'path' => app_url('department/dashboard.php')],
         ['key' => 'cashier_dashboard', 'label' => 'Cashier Dashboard', 'path' => app_url('cashier/dashboard.php')],
         ['key' => 'browse_products', 'label' => 'Browse Products', 'path' => app_url('cashier/products.php')],
         ['key' => 'sales_orders', 'label' => 'Sales Orders', 'path' => app_url('cashier/orders.php')],
