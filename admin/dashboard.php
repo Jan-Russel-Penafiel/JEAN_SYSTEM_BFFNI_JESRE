@@ -18,8 +18,6 @@ $totalSalesItems = (int)$pdo->query('SELECT COUNT(*) FROM sales_order_items')->f
 $totalPayments = (int)$pdo->query('SELECT COUNT(*) FROM payments')->fetchColumn();
 $totalNotifications = (int)$pdo->query('SELECT COUNT(*) FROM department_notifications')->fetchColumn();
 
-$recentNotifications = $pdo->query('SELECT * FROM department_notifications ORDER BY created_at DESC LIMIT 8')->fetchAll();
-
 $inventoryTotal = (int)$pdo->query("SELECT COUNT(*) FROM inventory_records WHERE department = 'INVENTORY'")->fetchColumn();
 $inventoryYes = (int)$pdo->query("SELECT COUNT(*) FROM inventory_records WHERE department = 'INVENTORY' AND availability_status = 'YES'")->fetchColumn();
 $inventoryNo = (int)$pdo->query("SELECT COUNT(*) FROM inventory_records WHERE department = 'INVENTORY' AND availability_status = 'NO'")->fetchColumn();
@@ -153,11 +151,6 @@ include __DIR__ . '/../partials/header.php';
         <div class="rounded-xl border border-brand-100 bg-white p-4">
             <div class="flex items-start justify-between gap-2">
                 <p class="text-xs text-slate-500">Net Income</p>
-                <button type="button"
-                        data-modal-open="latestNotificationsModal"
-                        class="inline-flex items-center rounded-md border border-brand-200 bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-100">
-                    Notifications
-                </button>
             </div>
             <p class="mt-1 text-2xl font-bold <?= $netIncome >= 0 ? 'text-emerald-600' : 'text-rose-600'; ?>"><?= e(format_currency($netIncome)); ?></p>
         </div>
@@ -219,42 +212,6 @@ include __DIR__ . '/../partials/header.php';
                 </div>
             </div>
     </section>
-</div>
-
-<div id="latestNotificationsModal"
-     data-modal
-     class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/40 p-4">
-    <div class="w-full max-w-2xl overflow-hidden rounded-2xl border border-brand-100 bg-white shadow-2xl">
-        <div class="flex items-center justify-between border-b border-brand-100 px-5 py-4">
-            <div>
-                <h4 class="text-base font-semibold text-brand-700">Latest Department Notifications</h4>
-                <p class="text-xs text-slate-500">Showing <?= count($recentNotifications); ?> most recent notifications.</p>
-            </div>
-            <button type="button"
-                    data-modal-close
-                    class="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">
-                Close
-            </button>
-        </div>
-        <div class="max-h-[70vh] overflow-y-auto p-5 space-y-3">
-            <?php if (!$recentNotifications): ?>
-                <p class="text-sm text-slate-500">No notifications yet.</p>
-            <?php else: ?>
-                <?php foreach ($recentNotifications as $notification): ?>
-                    <div class="rounded-lg border border-slate-100 p-3">
-                        <div class="flex items-center justify-between gap-2">
-                            <p class="text-xs font-semibold text-brand-700">To: <?= e($notification['target_department']); ?></p>
-                            <span class="rounded-full px-2 py-0.5 text-[11px] font-medium <?= $notification['status'] === 'PENDING' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'; ?>">
-                                <?= e($notification['status']); ?>
-                            </span>
-                        </div>
-                        <p class="mt-1 text-sm text-slate-700"><?= e($notification['message']); ?></p>
-                        <p class="mt-2 text-xs text-slate-400"><?= e($notification['created_at']); ?></p>
-                    </div>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </div>
-    </div>
 </div>
 
 <script src="<?= e(asset_url('vendor/chartjs/chart.umd.js')); ?>"></script>

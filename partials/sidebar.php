@@ -15,6 +15,7 @@ $roleMenus = [
         ['key' => 'receiving', 'label' => 'Receiving', 'path' => app_url('admin/receiving.php')],
         ['key' => 'storage', 'label' => 'Storage', 'path' => app_url('admin/storage.php')],
         ['key' => 'accounting', 'label' => 'Accounting', 'path' => app_url('admin/accounting.php')],
+        ['key' => 'notifications', 'label' => 'Notifications', 'path' => app_url('admin/notifications.php')],
         ['key' => 'products', 'label' => 'Products', 'path' => app_url('admin/products.php')],
         ['key' => 'users', 'label' => 'Users', 'path' => app_url('admin/users.php')],
     ],
