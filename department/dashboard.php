@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_role(['CASHIER', 'INVENTORY', 'PURCHASING', 'RECEIVING', 'STORAGE', 'ACCOUNTING']);
+require_role(['CASHIER', 'INVENTORY', 'PURCHASING', 'ACCOUNTING']);
 
 $pageTitle = 'Department Home';
 $activePage = 'department_home';
@@ -77,8 +77,8 @@ $departmentConfigs = [
         'heroGradient' => 'from-emerald-600 to-emerald-700',
         'focus' => ['Stock Health', 'Movement Logs', 'Reorder Watch'],
         'links' => [
-            ['label' => 'Open Inventory Workspace', 'path' => app_url('admin/inventory.php')],
-            ['label' => 'Manage Products', 'path' => app_url('admin/products.php')],
+            ['label' => 'Open Inventory Workspace', 'path' => app_url('department/inventory.php')],
+            ['label' => 'Manage Products', 'path' => app_url('department/products.php')],
         ],
         'stats' => [
             ['label' => 'Products', 'value' => $queryInt('SELECT COUNT(*) FROM products'), 'valueClass' => 'text-brand-700', 'hint' => 'Master items tracked in stock.', 'cardClass' => 'bg-white'],
@@ -104,14 +104,12 @@ $departmentConfigs = [
                 'title' => 'Movement Mix',
                 'description' => 'Inventory records by movement type.',
                 'type' => 'bar',
-                'labels' => ['Sale', 'Purchase', 'Return', 'Adjustment', 'Storage In', 'Storage Out'],
+                'labels' => ['Sale', 'Purchase', 'Return', 'Adjustment'],
                 'values' => [
                     $queryInt("SELECT COUNT(*) FROM inventory_records WHERE department = 'INVENTORY' AND change_type = 'SALE'"),
                     $queryInt("SELECT COUNT(*) FROM inventory_records WHERE department = 'INVENTORY' AND change_type = 'PURCHASE'"),
                     $queryInt("SELECT COUNT(*) FROM inventory_records WHERE department = 'INVENTORY' AND change_type = 'RETURN'"),
                     $queryInt("SELECT COUNT(*) FROM inventory_records WHERE department = 'INVENTORY' AND change_type = 'ADJUSTMENT'"),
-                    $queryInt("SELECT COUNT(*) FROM inventory_records WHERE department = 'INVENTORY' AND change_type = 'STORAGE_IN'"),
-                    $queryInt("SELECT COUNT(*) FROM inventory_records WHERE department = 'INVENTORY' AND change_type = 'STORAGE_OUT'"),
                 ],
                 'colors' => ['#2563eb'],
                 'legendPosition' => 'none',
@@ -130,21 +128,21 @@ $departmentConfigs = [
     ],
     'PURCHASING' => [
         'name' => 'Purchasing Department',
-        'summary' => 'Follow purchase orders from creation through receiving and storage handoff.',
+        'summary' => 'Handle restocking from low-stock alert through supplier follow-up and inventory handoff.',
         'eyebrow' => 'Procurement Snapshot',
         'heroGradient' => 'from-amber-600 to-amber-700',
-        'focus' => ['Purchase Orders', 'Supplier Tracking', 'Workflow Status'],
+        'focus' => ['Low Stock Alerts', 'Supplier Tracking', 'Inventory Handoff'],
         'links' => [
-            ['label' => 'Open Purchasing Workspace', 'path' => app_url('admin/purchasing.php')],
+            ['label' => 'Open Purchasing Workspace', 'path' => app_url('department/purchasing.php')],
         ],
         'stats' => [
             ['label' => 'Purchase Orders', 'value' => $queryInt('SELECT COUNT(*) FROM purchase_orders'), 'valueClass' => 'text-brand-700', 'hint' => 'All purchase orders logged.', 'cardClass' => 'bg-white'],
-            ['label' => 'Pending', 'value' => $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status = 'PENDING'"), 'valueClass' => 'text-amber-600', 'hint' => 'Orders not yet dispatched.', 'cardClass' => 'bg-white'],
-            ['label' => 'In Transit', 'value' => $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status = 'SENT_TO_RECEIVING'"), 'valueClass' => 'text-sky-600', 'hint' => 'Orders already sent to receiving.', 'cardClass' => 'bg-white'],
-            ['label' => 'Completed Flow', 'value' => $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status IN ('INSPECTED_OK','INSPECTED_NOT_OK','RETURNED','STORED')"), 'valueClass' => 'text-emerald-600', 'hint' => 'Orders that already moved past dispatch.', 'cardClass' => 'bg-white'],
+            ['label' => 'Waiting Delivery', 'value' => $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status = 'PENDING'"), 'valueClass' => 'text-amber-600', 'hint' => 'Orders waiting for supplier delivery.', 'cardClass' => 'bg-white'],
+            ['label' => 'Forwarded to Inventory', 'value' => $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status = 'SENT_TO_RECEIVING'"), 'valueClass' => 'text-sky-600', 'hint' => 'Delivered orders already handed to inventory.', 'cardClass' => 'bg-white'],
+            ['label' => 'Completed / Follow Up', 'value' => $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status IN ('RETURNED','STORED')"), 'valueClass' => 'text-emerald-600', 'hint' => 'Orders completed or sent for supplier follow-up.', 'cardClass' => 'bg-white'],
         ],
         'chartTitle' => 'Purchasing Pipeline',
-        'chartDescription' => 'The full order lifecycle from pending to storage.',
+        'chartDescription' => 'The restocking flow from waiting delivery to inventory handoff.',
         'charts' => [
             [
                 'id' => 'purchasingStatusChart',
@@ -152,12 +150,10 @@ $departmentConfigs = [
                 'description' => 'Distribution of the procurement workflow.',
                 'type' => 'bar',
                 'indexAxis' => 'y',
-                'labels' => ['Pending', 'Sent', 'Inspected OK', 'Inspected Not OK', 'Returned', 'Stored'],
+                'labels' => ['Waiting Delivery', 'Forwarded to Inventory', 'Follow Up', 'Completed'],
                 'values' => [
                     $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status = 'PENDING'"),
                     $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status = 'SENT_TO_RECEIVING'"),
-                    $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status = 'INSPECTED_OK'"),
-                    $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status = 'INSPECTED_NOT_OK'"),
                     $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status = 'RETURNED'"),
                     $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status = 'STORED'"),
                 ],
@@ -167,13 +163,13 @@ $departmentConfigs = [
             [
                 'id' => 'purchasingFlowChart',
                 'title' => 'Order Flow Groups',
-                'description' => 'Pending, in transit, and completed procurement activity.',
+                'description' => 'Orders waiting for delivery, handed to inventory, or already closed.',
                 'type' => 'doughnut',
-                'labels' => ['Pending', 'In Transit', 'Completed'],
+                'labels' => ['Waiting Delivery', 'Forwarded', 'Closed'],
                 'values' => [
                     $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status = 'PENDING'"),
                     $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status = 'SENT_TO_RECEIVING'"),
-                    $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status IN ('INSPECTED_OK','INSPECTED_NOT_OK','RETURNED','STORED')"),
+                    $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status IN ('RETURNED','STORED')"),
                 ],
                 'colors' => ['#f97316', '#3b82f6', '#10b981'],
                 'legendPosition' => 'bottom',
@@ -185,128 +181,20 @@ $departmentConfigs = [
         'activityRows' => $pdo->query('SELECT po_number, supplier_name, status, quantity, unit_cost, created_at FROM purchase_orders ORDER BY created_at DESC LIMIT 5')->fetchAll(),
         'notesTitle' => 'Purchasing Focus',
         'notes' => [
-            'Pending orders should move forward only after approval.',
+            'Review low-stock alerts before shelves run empty.',
             'Track supplier names carefully for every purchase order.',
-            'Rejected or returned orders need immediate follow-up.',
-        ],
-    ],
-    'RECEIVING' => [
-        'name' => 'Receiving Department',
-        'summary' => 'Inspect deliveries, log report results, and confirm incoming items.',
-        'eyebrow' => 'Receiving Snapshot',
-        'heroGradient' => 'from-sky-600 to-sky-700',
-        'focus' => ['Inspection Results', 'Delivery Checks', 'Incoming Orders'],
-        'links' => [
-            ['label' => 'Open Receiving Workspace', 'path' => app_url('admin/receiving.php')],
-        ],
-        'stats' => [
-            ['label' => 'Receiving Reports', 'value' => $queryInt('SELECT COUNT(*) FROM receiving_reports'), 'valueClass' => 'text-brand-700', 'hint' => 'All inspection reports recorded.', 'cardClass' => 'bg-white'],
-            ['label' => 'Items OK', 'value' => $queryInt("SELECT COUNT(*) FROM receiving_reports WHERE items_ok = 'YES'"), 'valueClass' => 'text-emerald-600', 'hint' => 'Reports that passed inspection.', 'cardClass' => 'bg-white'],
-            ['label' => 'Items Not OK', 'value' => $queryInt("SELECT COUNT(*) FROM receiving_reports WHERE items_ok = 'NO'"), 'valueClass' => 'text-rose-600', 'hint' => 'Reports flagged for correction.', 'cardClass' => 'bg-white'],
-            ['label' => 'Waiting for Inspection', 'value' => $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status = 'SENT_TO_RECEIVING'"), 'valueClass' => 'text-amber-600', 'hint' => 'Purchase orders awaiting receiving review.', 'cardClass' => 'bg-white'],
-        ],
-        'chartTitle' => 'Receiving Workflow',
-        'chartDescription' => 'Inspection outcomes and current delivery workload.',
-        'charts' => [
-            [
-                'id' => 'receivingOutcomeChart',
-                'title' => 'Inspection Outcome',
-                'description' => 'Yes / No results from receiving reports.',
-                'type' => 'doughnut',
-                'labels' => ['Yes', 'No'],
-                'values' => [$queryInt("SELECT COUNT(*) FROM receiving_reports WHERE items_ok = 'YES'"), $queryInt("SELECT COUNT(*) FROM receiving_reports WHERE items_ok = 'NO'")],
-                'colors' => ['#10b981', '#f43f5e'],
-                'legendPosition' => 'bottom',
-            ],
-            [
-                'id' => 'receivingPipelineChart',
-                'title' => 'Incoming Delivery Queue',
-                'description' => 'Purchase orders waiting, already reported, or cleared.',
-                'type' => 'bar',
-                'labels' => ['Waiting', 'Reports', 'OK', 'Not OK'],
-                'values' => [
-                    $queryInt("SELECT COUNT(*) FROM purchase_orders WHERE status = 'SENT_TO_RECEIVING'"),
-                    $queryInt('SELECT COUNT(*) FROM receiving_reports'),
-                    $queryInt("SELECT COUNT(*) FROM receiving_reports WHERE items_ok = 'YES'"),
-                    $queryInt("SELECT COUNT(*) FROM receiving_reports WHERE items_ok = 'NO'"),
-                ],
-                'colors' => ['#0284c7'],
-                'legendPosition' => 'none',
-            ],
-        ],
-        'activityTitle' => 'Recent Receiving Reports',
-        'activityDescription' => 'The latest inspection results recorded by receiving.',
-        'activityType' => 'receiving_reports',
-        'activityRows' => $pdo->query('SELECT rr.inspected_qty, rr.items_ok, rr.notes, rr.created_at, po.po_number, po.supplier_name FROM receiving_reports rr INNER JOIN purchase_orders po ON po.id = rr.purchase_order_id ORDER BY rr.created_at DESC LIMIT 5')->fetchAll(),
-        'notesTitle' => 'Receiving Focus',
-        'notes' => [
-            'Inspect delivered quantities against purchase orders.',
-            'Mark defective deliveries immediately for follow-up.',
-            'Clear reports should advance to storage without delay.',
-        ],
-    ],
-    'STORAGE' => [
-        'name' => 'Storage Department',
-        'summary' => 'Handle stock intake, storage handoff, and return movement records.',
-        'eyebrow' => 'Storage Snapshot',
-        'heroGradient' => 'from-violet-600 to-violet-700',
-        'focus' => ['Stock Intake', 'Return Handling', 'Source Tracking'],
-        'links' => [
-            ['label' => 'Open Storage Workspace', 'path' => app_url('admin/storage.php')],
-        ],
-        'stats' => [
-            ['label' => 'Storage Logs', 'value' => $queryInt('SELECT COUNT(*) FROM storage_logs'), 'valueClass' => 'text-brand-700', 'hint' => 'All movement logs in storage.', 'cardClass' => 'bg-white'],
-            ['label' => 'Stored Moves', 'value' => $queryInt("SELECT COUNT(*) FROM storage_logs WHERE action = 'STORE'"), 'valueClass' => 'text-emerald-600', 'hint' => 'Logs confirming items were stored.', 'cardClass' => 'bg-white'],
-            ['label' => 'Return Moves', 'value' => $queryInt("SELECT COUNT(*) FROM storage_logs WHERE action = 'RETURN_TO_PURCHASING'"), 'valueClass' => 'text-amber-600', 'hint' => 'Logs returned for purchasing review.', 'cardClass' => 'bg-white'],
-            ['label' => 'Products Touched', 'value' => $queryInt('SELECT COUNT(DISTINCT product_id) FROM storage_logs'), 'valueClass' => 'text-sky-600', 'hint' => 'Unique products passing through storage.', 'cardClass' => 'bg-white'],
-        ],
-        'chartTitle' => 'Storage Activity',
-        'chartDescription' => 'Movement actions and where the items came from.',
-        'charts' => [
-            [
-                'id' => 'storageActionsChart',
-                'title' => 'Action Mix',
-                'description' => 'Stored items versus returns to purchasing.',
-                'type' => 'doughnut',
-                'labels' => ['Store', 'Return'],
-                'values' => [$queryInt("SELECT COUNT(*) FROM storage_logs WHERE action = 'STORE'"), $queryInt("SELECT COUNT(*) FROM storage_logs WHERE action = 'RETURN_TO_PURCHASING'")],
-                'colors' => ['#8b5cf6', '#f59e0b'],
-                'legendPosition' => 'bottom',
-            ],
-            [
-                'id' => 'storageSourceChart',
-                'title' => 'Source Department Mix',
-                'description' => 'Where stored or returned items originated.',
-                'type' => 'bar',
-                'labels' => ['Inventory', 'Receiving', 'Purchasing'],
-                'values' => [
-                    $queryInt("SELECT COUNT(*) FROM storage_logs WHERE from_department = 'INVENTORY'"),
-                    $queryInt("SELECT COUNT(*) FROM storage_logs WHERE from_department = 'RECEIVING'"),
-                    $queryInt("SELECT COUNT(*) FROM storage_logs WHERE from_department = 'PURCHASING'"),
-                ],
-                'colors' => ['#7c3aed'],
-                'legendPosition' => 'none',
-            ],
-        ],
-        'activityTitle' => 'Recent Storage Logs',
-        'activityDescription' => 'The latest storage movements captured by the team.',
-        'activityType' => 'storage_logs',
-        'activityRows' => $pdo->query('SELECT sl.quantity, sl.action, sl.from_department, sl.notes, sl.created_at, p.product_name, p.sku FROM storage_logs sl INNER JOIN products p ON p.id = sl.product_id ORDER BY sl.created_at DESC LIMIT 5')->fetchAll(),
-        'notesTitle' => 'Storage Focus',
-        'notes' => [
-            'Store items only after inspection is complete.',
-            'Returns should be sent back with clear notes.',
-            'Track the originating department for every movement.',
+            'Forward delivered items directly to inventory for stock update.',
+            'Use follow-up status when delivery has not arrived yet.',
         ],
     ],
     'ACCOUNTING' => [
         'name' => 'Accounting Department',
-        'summary' => 'Review sales, expenses, and net income alongside notification follow-up.',
+        'summary' => 'Review sales, expenses, monthly sales report history, and net income from one finance workspace.',
         'eyebrow' => 'Financial Snapshot',
         'heroGradient' => 'from-rose-600 to-rose-700',
-        'focus' => ['Revenue', 'Expenses', 'Net Income'],
+        'focus' => ['Revenue', 'Monthly Reports', 'Net Income'],
         'links' => [
-            ['label' => 'Open Accounting Workspace', 'path' => app_url('admin/accounting.php')],
+            ['label' => 'Open Accounting Workspace', 'path' => app_url('department/accounting.php')],
         ],
         'stats' => [
             ['label' => 'Paid Sales', 'value' => format_currency($queryFloat("SELECT COALESCE(SUM(total_amount),0) FROM sales_orders WHERE payment_status = 'PAID'")), 'valueClass' => 'text-emerald-600', 'hint' => 'Revenue from paid orders.', 'cardClass' => 'bg-white'],
@@ -344,12 +232,13 @@ $departmentConfigs = [
             ],
         ],
         'activityTitle' => 'Recent Expenses',
-        'activityDescription' => 'Latest costs recorded by accounting for review.',
+        'activityDescription' => 'Latest costs recorded by accounting. Open the workspace for monthly report history.',
         'activityType' => 'accounting_expenses',
         'activityRows' => $pdo->query('SELECT expense_date, category, description, amount, created_at FROM accounting_expenses ORDER BY expense_date DESC, created_at DESC LIMIT 5')->fetchAll(),
         'notesTitle' => 'Accounting Focus',
         'notes' => [
             'Compare collected sales against recorded expenses.',
+            'Review past monthly reports to track business performance over time.',
             'Clear pending notifications to keep departments aligned.',
             'Net income should stay visible on every review cycle.',
         ],
@@ -446,43 +335,25 @@ include __DIR__ . '/../partials/header.php';
                                     </div>
                                     <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold <?= $row['payment_status'] === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'; ?>"><?= e($row['payment_status']); ?></span>
                                 </div>
-                                <p class="mt-2 text-xs text-slate-400">Flow: <?= e($row['flow_status']); ?> • <?= e($row['created_at']); ?></p>
+                                <p class="mt-2 text-xs text-slate-400">Flow: <?= e($row['flow_status']); ?> &middot; <?= e($row['created_at']); ?></p>
                             <?php elseif ($config['activityType'] === 'inventory_records'): ?>
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
                                         <p class="text-sm font-semibold text-brand-700"><?= e($row['product_name']); ?></p>
-                                        <p class="mt-1 text-sm text-slate-600"><?= e($row['sku']); ?> • Qty <?= e((string)$row['qty_before']); ?> → <?= e((string)$row['qty_after']); ?></p>
+                                        <p class="mt-1 text-sm text-slate-600"><?= e($row['sku']); ?> &middot; Qty <?= e((string)$row['qty_before']); ?> &rarr; <?= e((string)$row['qty_after']); ?></p>
                                     </div>
                                     <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold <?= $row['availability_status'] === 'YES' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'; ?>"><?= e((string)$row['change_type']); ?></span>
                                 </div>
-                                <p class="mt-2 text-xs text-slate-400"><?= e((string)$row['remarks']); ?> • <?= e($row['created_at']); ?></p>
+                                <p class="mt-2 text-xs text-slate-400"><?= e((string)$row['remarks']); ?> &middot; <?= e($row['created_at']); ?></p>
                             <?php elseif ($config['activityType'] === 'purchase_orders'): ?>
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
                                         <p class="text-sm font-semibold text-brand-700"><?= e($row['po_number']); ?></p>
-                                        <p class="mt-1 text-sm text-slate-600"><?= e($row['supplier_name']); ?> • Qty <?= e((string)$row['quantity']); ?></p>
+                                        <p class="mt-1 text-sm text-slate-600"><?= e($row['supplier_name']); ?> &middot; Qty <?= e((string)$row['quantity']); ?></p>
                                     </div>
-                                    <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold bg-sky-100 text-sky-700"><?= e($row['status']); ?></span>
+                                    <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold bg-sky-100 text-sky-700"><?= e(display_status_label($row['status'])); ?></span>
                                 </div>
-                                <p class="mt-2 text-xs text-slate-400">Unit Cost: <?= e(format_currency((float)$row['unit_cost'])); ?> • <?= e($row['created_at']); ?></p>
-                            <?php elseif ($config['activityType'] === 'receiving_reports'): ?>
-                                <div class="flex items-start justify-between gap-3">
-                                    <div>
-                                        <p class="text-sm font-semibold text-brand-700"><?= e($row['po_number']); ?></p>
-                                        <p class="mt-1 text-sm text-slate-600"><?= e($row['supplier_name']); ?> • Inspected Qty <?= e((string)$row['inspected_qty']); ?></p>
-                                    </div>
-                                    <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold <?= $row['items_ok'] === 'YES' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'; ?>"><?= e($row['items_ok']); ?></span>
-                                </div>
-                                <p class="mt-2 text-xs text-slate-400"><?= e((string)$row['notes']); ?> • <?= e($row['created_at']); ?></p>
-                            <?php elseif ($config['activityType'] === 'storage_logs'): ?>
-                                <div class="flex items-start justify-between gap-3">
-                                    <div>
-                                        <p class="text-sm font-semibold text-brand-700"><?= e($row['product_name']); ?></p>
-                                        <p class="mt-1 text-sm text-slate-600"><?= e($row['sku']); ?> • Qty <?= e((string)$row['quantity']); ?> • From <?= e($row['from_department']); ?></p>
-                                    </div>
-                                    <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold <?= $row['action'] === 'STORE' ? 'bg-violet-100 text-violet-700' : 'bg-amber-100 text-amber-700'; ?>"><?= e($row['action']); ?></span>
-                                </div>
-                                <p class="mt-2 text-xs text-slate-400"><?= e((string)$row['notes']); ?> • <?= e($row['created_at']); ?></p>
+                                <p class="mt-2 text-xs text-slate-400">Unit Cost: <?= e(format_currency((float)$row['unit_cost'])); ?> &middot; <?= e($row['created_at']); ?></p>
                             <?php elseif ($config['activityType'] === 'accounting_expenses'): ?>
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
@@ -491,7 +362,7 @@ include __DIR__ . '/../partials/header.php';
                                     </div>
                                     <span class="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-700"><?= e(format_currency((float)$row['amount'])); ?></span>
                                 </div>
-                                <p class="mt-2 text-xs text-slate-400">Date: <?= e($row['expense_date']); ?> • <?= e($row['created_at']); ?></p>
+                                <p class="mt-2 text-xs text-slate-400">Date: <?= e($row['expense_date']); ?> &middot; <?= e($row['created_at']); ?></p>
                             <?php endif; ?>
                         </div>
                     <?php endforeach; ?>

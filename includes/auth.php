@@ -15,7 +15,7 @@ function current_user()
 
 function app_roles()
 {
-    return ['ADMIN', 'CASHIER', 'INVENTORY', 'PURCHASING', 'RECEIVING', 'STORAGE', 'ACCOUNTING'];
+    return ['CASHIER', 'INVENTORY', 'PURCHASING', 'ACCOUNTING'];
 }
 
 function normalize_role($role)
@@ -65,10 +65,9 @@ function ensure_department_accounts(PDO $pdo)
 {
     $defaultPasswordHash = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi';
     $defaults = [
+        ['name' => 'Main Cashier', 'username' => 'cashier', 'role' => 'CASHIER'],
         ['name' => 'Inventory Officer', 'username' => 'inventory', 'role' => 'INVENTORY'],
         ['name' => 'Purchasing Officer', 'username' => 'purchasing', 'role' => 'PURCHASING'],
-        ['name' => 'Receiving Officer', 'username' => 'receiving', 'role' => 'RECEIVING'],
-        ['name' => 'Storage Officer', 'username' => 'storage', 'role' => 'STORAGE'],
         ['name' => 'Accounting Officer', 'username' => 'accounting', 'role' => 'ACCOUNTING'],
     ];
 

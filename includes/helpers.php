@@ -96,9 +96,25 @@ function status_badge_class($status)
         'PENDING' => 'bg-amber-100 text-amber-700',
         'PAID' => 'bg-emerald-100 text-emerald-700',
         'UNPAID' => 'bg-rose-100 text-rose-700',
+        'ORDER_CONFIRMED' => 'bg-amber-100 text-amber-700',
+        'ORDER_COMPLETE' => 'bg-emerald-100 text-emerald-700',
         'LOW' => 'bg-amber-100 text-amber-700',
         'OK' => 'bg-emerald-100 text-emerald-700',
+        'SENT_TO_RECEIVING' => 'bg-sky-100 text-sky-700',
+        'RETURNED' => 'bg-rose-100 text-rose-700',
+        'STORED' => 'bg-emerald-100 text-emerald-700',
     ];
 
     return $map[$status] ?? 'bg-slate-100 text-slate-700';
+}
+
+function display_status_label($status)
+{
+    $map = [
+        'SENT_TO_RECEIVING' => 'FORWARDED_TO_INVENTORY',
+        'RETURNED' => 'FOLLOW_UP',
+        'STORED' => 'COMPLETED',
+    ];
+
+    return $map[$status] ?? (string)$status;
 }

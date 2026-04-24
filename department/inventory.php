@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_role(['INVENTORY', 'ADMIN']);
+require_role(['INVENTORY']);
 
 $pageTitle = 'Inventory Department';
 $activePage = 'inventory';
@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        header('Location: ' . app_url('admin/inventory.php'));
+        header('Location: ' . app_url('department/inventory.php'));
         exit;
     }
 
@@ -129,23 +129,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $insertRecord->execute([
                         'product_id' => $productId,
                         'department' => 'INVENTORY',
-                        'change_type' => 'STORAGE_OUT',
+                        'change_type' => 'ADJUSTMENT',
                         'availability_status' => $qtyAfter > 0 ? 'YES' : 'NO',
                         'item_check_status' => null,
                         'qty_before' => $qtyBefore,
                         'qty_change' => -$quantity,
                         'qty_after' => $qtyAfter,
                         'remarks' => $remarks !== '' ? $remarks : 'Released item and updated stock.',
-                        'created_by' => $user['id'],
-                    ]);
-
-                    $store = $pdo->prepare('INSERT INTO storage_logs (product_id, quantity, from_department, action, notes, created_by) VALUES (:product_id, :quantity, :from_department, :action, :notes, :created_by)');
-                    $store->execute([
-                        'product_id' => $productId,
-                        'quantity' => $quantity,
-                        'from_department' => 'INVENTORY',
-                        'action' => 'STORE',
-                        'notes' => 'Release item flow recorded in storage.',
                         'created_by' => $user['id'],
                     ]);
 
@@ -167,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        header('Location: ' . app_url('admin/inventory.php'));
+        header('Location: ' . app_url('department/inventory.php'));
         exit;
     }
 
@@ -208,16 +198,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'created_by' => $user['id'],
                 ]);
 
-                $store = $pdo->prepare('INSERT INTO storage_logs (product_id, quantity, from_department, action, notes, created_by) VALUES (:product_id, :quantity, :from_department, :action, :notes, :created_by)');
-                $store->execute([
-                    'product_id' => $productId,
-                    'quantity' => max($qtyBefore, 0),
-                    'from_department' => 'INVENTORY',
-                    'action' => 'STORE',
-                    'notes' => 'Out-of-stock flow recorded in storage.',
-                    'created_by' => $user['id'],
-                ]);
-
                 $notify = $pdo->prepare('INSERT INTO department_notifications (target_department, message, status) VALUES (:target_department, :message, :status)');
                 $notify->execute([
                     'target_department' => 'PURCHASING',
@@ -233,7 +213,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        header('Location: ' . app_url('admin/inventory.php'));
+        header('Location: ' . app_url('department/inventory.php'));
         exit;
     }
 
@@ -254,7 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Inventory record updated.');
         }
 
-        header('Location: ' . app_url('admin/inventory.php'));
+        header('Location: ' . app_url('department/inventory.php'));
         exit;
     }
 
@@ -266,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Inventory record deleted.');
         }
 
-        header('Location: ' . app_url('admin/inventory.php'));
+        header('Location: ' . app_url('department/inventory.php'));
         exit;
     }
 
@@ -287,35 +267,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Purchasing department notified.');
         }
 
-        header('Location: ' . app_url('admin/inventory.php'));
-        exit;
-    }
-
-    if ($action === 'send_to_storage') {
-        $productId = (int)($_POST['product_id'] ?? 0);
-        $quantity = (int)($_POST['quantity'] ?? 0);
-        $notes = trim($_POST['notes'] ?? '');
-
-        $productStmt = $pdo->prepare('SELECT * FROM products WHERE id = :id LIMIT 1');
-        $productStmt->execute(['id' => $productId]);
-        $product = $productStmt->fetch();
-
-        if (!$product || $quantity <= 0 || $quantity > (int)$product['stock_qty']) {
-            flash_set('error', 'Invalid storage quantity.');
-        } else {
-            $store = $pdo->prepare('INSERT INTO storage_logs (product_id, quantity, from_department, action, notes, created_by) VALUES (:product_id, :quantity, :from_department, :action, :notes, :created_by)');
-            $store->execute([
-                'product_id' => $productId,
-                'quantity' => $quantity,
-                'from_department' => 'INVENTORY',
-                'action' => 'STORE',
-                'notes' => $notes,
-                'created_by' => $user['id'],
-            ]);
-            flash_set('success', 'Product sent to storage queue.');
-        }
-
-        header('Location: ' . app_url('admin/inventory.php'));
+        header('Location: ' . app_url('department/inventory.php'));
         exit;
     }
 
@@ -342,7 +294,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Purchase order created from inventory flow.');
         }
 
-        header('Location: ' . app_url('admin/inventory.php'));
+        header('Location: ' . app_url('department/inventory.php'));
         exit;
     }
 
@@ -357,7 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$purchaseOrder || $receivedQty <= 0) {
             flash_set('error', 'Invalid delivered-items request.');
         } elseif (($purchaseOrder['status'] ?? '') !== 'SENT_TO_RECEIVING') {
-            flash_set('error', 'Purchase order is no longer waiting for inventory receiving.');
+            flash_set('error', 'Purchase order is no longer waiting for inventory update.');
         } else {
             $qtyBefore = (int)$purchaseOrder['stock_qty'];
             $qtyAfter = $qtyBefore + $receivedQty;
@@ -384,28 +336,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'created_by' => $user['id'],
                 ]);
 
-                $store = $pdo->prepare('INSERT INTO storage_logs (product_id, quantity, from_department, action, notes, created_by) VALUES (:product_id, :quantity, :from_department, :action, :notes, :created_by)');
-                $store->execute([
-                    'product_id' => $purchaseOrder['product_id'],
-                    'quantity' => $receivedQty,
-                    'from_department' => 'INVENTORY',
-                    'action' => 'STORE',
-                    'notes' => 'Delivered items received by inventory and recorded to storage.',
-                    'created_by' => $user['id'],
-                ]);
-
                 $updatePO = $pdo->prepare("UPDATE purchase_orders SET status = 'STORED' WHERE id = :id AND status = 'SENT_TO_RECEIVING'");
                 $updatePO->execute(['id' => $purchaseOrderId]);
 
                 $pdo->commit();
-                flash_set('success', 'Delivered items received, stock updated, and purchase status moved to STORED.');
+                flash_set('success', 'Delivered items received, stock updated, and purchase order marked completed.');
             } catch (Exception $e) {
                 $pdo->rollBack();
                 flash_set('error', 'Failed to process delivered items in inventory.');
             }
         }
 
-        header('Location: ' . app_url('admin/inventory.php'));
+        header('Location: ' . app_url('department/inventory.php'));
         exit;
     }
 }
@@ -420,10 +362,10 @@ include __DIR__ . '/../partials/header.php';
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h2 class="text-2xl font-bold text-brand-700">Inventory Department</h2>
-            <p class="text-sm text-slate-500">Open inventory dashboard, check stock availability, release item, tag out of stock, and update stock records.</p>
+            <p class="text-sm text-slate-500">Check stock availability, release item, tag out of stock, record shortages, and update stock after purchasing deliveries.</p>
         </div>
         <div class="flex flex-wrap gap-2">
-            <a href="<?= e(app_url('admin/inventory.php')); ?>?export=stock_report_csv" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Export Stock Report</a>
+            <a href="<?= e(app_url('department/inventory.php')); ?>?export=stock_report_csv" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Export Stock Report</a>
             <button data-modal-open="record-inventory-modal" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Record Data</button>
             <button data-modal-open="quick-po-modal" class="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900">Create Purchase Order</button>
         </div>
@@ -461,7 +403,6 @@ include __DIR__ . '/../partials/header.php';
                         <div class="flex flex-wrap gap-2">
                             <?php if ($isAvailable): ?>
                                 <button data-modal-open="release-item-<?= (int)$product['id']; ?>" class="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Release Item</button>
-                                <button data-modal-open="send-storage-<?= (int)$product['id']; ?>" class="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">Record Storage</button>
                             <?php else: ?>
                                 <button data-modal-open="tag-out-<?= (int)$product['id']; ?>" class="rounded-md bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700">Tag as Out of Stock</button>
                             <?php endif; ?>
@@ -478,7 +419,7 @@ include __DIR__ . '/../partials/header.php';
     </section>
 
     <section class="rounded-xl border border-brand-100 bg-white p-4 overflow-x-auto">
-        <h3 class="text-base font-semibold text-brand-700 mb-3">Received Delivered Items</h3>
+        <h3 class="text-base font-semibold text-brand-700 mb-3">Purchasing Deliveries to Update</h3>
         <table class="min-w-full text-sm">
             <thead>
             <tr class="border-b border-slate-100 text-left text-slate-500">
@@ -491,20 +432,20 @@ include __DIR__ . '/../partials/header.php';
             </thead>
             <tbody>
             <?php if (!$incomingPurchaseOrders): ?>
-                <tr><td class="py-3 text-slate-500" colspan="5">No delivered purchase orders waiting for inventory receiving.</td></tr>
+                <tr><td class="py-3 text-slate-500" colspan="5">No purchase orders are waiting for inventory stock update.</td></tr>
             <?php else: ?>
                 <?php foreach ($incomingPurchaseOrders as $purchaseOrder): ?>
                     <tr class="border-b border-slate-50">
                         <td class="py-2 pr-3 font-medium text-slate-700"><?= e($purchaseOrder['po_number']); ?></td>
                         <td class="py-2 pr-3"><?= e($purchaseOrder['sku']); ?> - <?= e($purchaseOrder['product_name']); ?></td>
                         <td class="py-2 pr-3"><?= (int)$purchaseOrder['quantity']; ?></td>
-                        <td class="py-2 pr-3"><span class="rounded-full px-2 py-1 text-xs font-semibold <?= e(status_badge_class($purchaseOrder['status'])); ?>"><?= e($purchaseOrder['status']); ?></span></td>
+                        <td class="py-2 pr-3"><span class="rounded-full px-2 py-1 text-xs font-semibold <?= e(status_badge_class($purchaseOrder['status'])); ?>"><?= e(display_status_label($purchaseOrder['status'])); ?></span></td>
                         <td class="py-2">
                             <form method="post" class="flex flex-wrap items-center gap-2">
                                 <input type="hidden" name="action" value="receive_delivered_items">
                                 <input type="hidden" name="purchase_order_id" value="<?= (int)$purchaseOrder['id']; ?>">
                                 <input type="number" min="1" max="<?= (int)$purchaseOrder['quantity']; ?>" name="received_qty" value="<?= (int)$purchaseOrder['quantity']; ?>" class="w-24 rounded-md border border-slate-200 px-2 py-1 text-xs" required>
-                                <button type="submit" class="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Add Stock & Update Status</button>
+                                <button type="submit" class="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Add Stock & Complete</button>
                             </form>
                         </td>
                     </tr>
@@ -675,28 +616,6 @@ include __DIR__ . '/../partials/header.php';
                 <input type="hidden" name="product_id" value="<?= (int)$product['id']; ?>">
                 <button type="button" data-modal-close class="rounded-lg border border-slate-200 px-4 py-2 text-sm">Cancel</button>
                 <button type="submit" class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white">Notify</button>
-            </form>
-        </div>
-    </div>
-
-    <div id="send-storage-<?= (int)$product['id']; ?>" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
-        <div class="w-full max-w-md rounded-xl bg-white p-6">
-            <h3 class="text-lg font-semibold text-emerald-700">Record Storage</h3>
-            <form method="post" class="mt-4 space-y-3">
-                <input type="hidden" name="action" value="send_to_storage">
-                <input type="hidden" name="product_id" value="<?= (int)$product['id']; ?>">
-                <div>
-                    <label class="text-sm text-slate-600">Quantity</label>
-                    <input type="number" min="1" max="<?= (int)$product['stock_qty']; ?>" name="quantity" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" required>
-                </div>
-                <div>
-                    <label class="text-sm text-slate-600">Notes</label>
-                    <textarea name="notes" rows="2" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"></textarea>
-                </div>
-                <div class="flex justify-end gap-2">
-                    <button type="button" data-modal-close class="rounded-lg border border-slate-200 px-4 py-2 text-sm">Cancel</button>
-                    <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Send</button>
-                </div>
             </form>
         </div>
     </div>

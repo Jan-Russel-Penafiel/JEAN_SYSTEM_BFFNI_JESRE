@@ -24,6 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$user || !password_verify($password, $user['password'])) {
             $errors[] = 'Invalid login credentials.';
+        } elseif (!is_valid_role($user['role'] ?? '')) {
+            $errors[] = 'This department account is no longer active in the system.';
         } else {
             login_user($user);
             header('Location: ' . app_url('index.php'));
@@ -117,11 +119,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </thead>
                 <tbody class="divide-y divide-slate-100 text-slate-700">
                     <tr>
-                        <td class="py-3 pr-4 font-medium text-slate-900">Admin</td>
-                        <td class="py-3 pr-4">admin</td>
-                        <td class="py-3 pr-4">password</td>
-                    </tr>
-                    <tr>
                         <td class="py-3 pr-4 font-medium text-slate-900">Cashier</td>
                         <td class="py-3 pr-4">cashier</td>
                         <td class="py-3 pr-4">password</td>
@@ -134,16 +131,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <tr>
                         <td class="py-3 pr-4 font-medium text-slate-900">Purchasing</td>
                         <td class="py-3 pr-4">purchasing</td>
-                        <td class="py-3 pr-4">password</td>
-                    </tr>
-                    <tr>
-                        <td class="py-3 pr-4 font-medium text-slate-900">Receiving</td>
-                        <td class="py-3 pr-4">receiving</td>
-                        <td class="py-3 pr-4">password</td>
-                    </tr>
-                    <tr>
-                        <td class="py-3 pr-4 font-medium text-slate-900">Storage</td>
-                        <td class="py-3 pr-4">storage</td>
                         <td class="py-3 pr-4">password</td>
                     </tr>
                     <tr>

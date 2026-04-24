@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     name VARCHAR(120) NOT NULL,
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    role ENUM('ADMIN','CASHIER','INVENTORY','PURCHASING','RECEIVING','STORAGE','ACCOUNTING') NOT NULL,
+    role ENUM('CASHIER','INVENTORY','PURCHASING','ACCOUNTING') NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -57,8 +57,8 @@ CREATE TABLE IF NOT EXISTS payments (
 CREATE TABLE IF NOT EXISTS inventory_records (
     id INT AUTO_INCREMENT PRIMARY KEY,
     product_id INT NOT NULL,
-    department ENUM('INVENTORY','PURCHASING','RECEIVING','STORAGE','CASHIER') NOT NULL,
-    change_type ENUM('SALE','PURCHASE','RETURN','ADJUSTMENT','STORAGE_IN','STORAGE_OUT') NOT NULL,
+    department ENUM('INVENTORY','PURCHASING','CASHIER') NOT NULL,
+    change_type ENUM('SALE','PURCHASE','RETURN','ADJUSTMENT') NOT NULL,
     availability_status ENUM('YES','NO') DEFAULT NULL,
     item_check_status ENUM('YES','NO') DEFAULT NULL,
     qty_before INT NOT NULL,
@@ -78,32 +78,7 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
     quantity INT NOT NULL,
     unit_cost DECIMAL(12,2) NOT NULL DEFAULT 0,
     supplier_name VARCHAR(150) NOT NULL,
-    status ENUM('PENDING','SENT_TO_RECEIVING','INSPECTED_OK','INSPECTED_NOT_OK','RETURNED','STORED') NOT NULL DEFAULT 'PENDING',
-    created_by INT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (product_id) REFERENCES products(id),
-    FOREIGN KEY (created_by) REFERENCES users(id)
-);
-
-CREATE TABLE IF NOT EXISTS receiving_reports (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    purchase_order_id INT NOT NULL,
-    inspected_qty INT NOT NULL,
-    items_ok ENUM('YES','NO') NOT NULL,
-    notes VARCHAR(255) NULL,
-    created_by INT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id) ON DELETE CASCADE,
-    FOREIGN KEY (created_by) REFERENCES users(id)
-);
-
-CREATE TABLE IF NOT EXISTS storage_logs (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    product_id INT NOT NULL,
-    quantity INT NOT NULL,
-    from_department ENUM('INVENTORY','RECEIVING','PURCHASING') NOT NULL,
-    action ENUM('STORE','RETURN_TO_PURCHASING') NOT NULL,
-    notes VARCHAR(255) NULL,
+    status ENUM('PENDING','SENT_TO_RECEIVING','RETURNED','STORED') NOT NULL DEFAULT 'PENDING',
     created_by INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (product_id) REFERENCES products(id),
@@ -128,10 +103,6 @@ CREATE TABLE IF NOT EXISTS accounting_expenses (
 );
 
 INSERT INTO users (name, username, password, role)
-SELECT 'System Admin', 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ADMIN'
-WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'admin');
-
-INSERT INTO users (name, username, password, role)
 SELECT 'Main Cashier', 'cashier', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'CASHIER'
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'cashier');
 
@@ -142,14 +113,6 @@ WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'inventory');
 INSERT INTO users (name, username, password, role)
 SELECT 'Purchasing Officer', 'purchasing', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'PURCHASING'
 WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'purchasing');
-
-INSERT INTO users (name, username, password, role)
-SELECT 'Receiving Officer', 'receiving', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'RECEIVING'
-WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'receiving');
-
-INSERT INTO users (name, username, password, role)
-SELECT 'Storage Officer', 'storage', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'STORAGE'
-WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'storage');
 
 INSERT INTO users (name, username, password, role)
 SELECT 'Accounting Officer', 'accounting', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ACCOUNTING'

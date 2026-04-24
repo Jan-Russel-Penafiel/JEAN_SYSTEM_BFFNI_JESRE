@@ -10,16 +10,12 @@ $errors = [];
 $name = '';
 $username = '';
 $role = 'CASHIER';
-$roleOptions = array_values(array_filter(app_roles(), static function ($allowedRole) {
-    return $allowedRole !== 'ADMIN';
-}));
+$roleOptions = app_roles();
 
 $roleLabels = [
     'CASHIER' => 'Cashier',
     'INVENTORY' => 'Inventory',
     'PURCHASING' => 'Purchasing',
-    'RECEIVING' => 'Receiving',
-    'STORAGE' => 'Storage',
     'ACCOUNTING' => 'Accounting',
 ];
 

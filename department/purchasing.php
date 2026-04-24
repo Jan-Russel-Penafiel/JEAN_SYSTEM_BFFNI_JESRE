@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_role(['PURCHASING', 'ADMIN']);
+require_role(['PURCHASING']);
 
 $pageTitle = 'Purchasing Department';
 $activePage = 'purchasing';
@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Notification marked as read.');
         }
 
-        header('Location: ' . app_url('admin/purchasing.php'));
+        header('Location: ' . app_url('department/purchasing.php'));
         exit;
     }
 
@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
 
         flash_set('success', 'All purchasing notifications marked as read.');
-        header('Location: ' . app_url('admin/purchasing.php'));
+        header('Location: ' . app_url('department/purchasing.php'));
         exit;
     }
 
@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             flash_set('success', 'Purchase order created.');
         }
-        header('Location: ' . app_url('admin/purchasing.php'));
+        header('Location: ' . app_url('department/purchasing.php'));
         exit;
     }
 
@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Supplier contacted. Purchase order is waiting for delivery.');
         }
 
-        header('Location: ' . app_url('admin/purchasing.php'));
+        header('Location: ' . app_url('department/purchasing.php'));
         exit;
     }
 
@@ -83,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Purchase order set to waiting for delivery.');
         }
 
-        header('Location: ' . app_url('admin/purchasing.php'));
+        header('Location: ' . app_url('department/purchasing.php'));
         exit;
     }
 
@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $supplierName = trim($_POST['supplier_name'] ?? '');
         $status = $_POST['status'] ?? 'PENDING';
 
-        $allowed = ['PENDING', 'SENT_TO_RECEIVING', 'INSPECTED_OK', 'INSPECTED_NOT_OK', 'RETURNED', 'STORED'];
+        $allowed = ['PENDING', 'SENT_TO_RECEIVING', 'RETURNED', 'STORED'];
         if (!in_array($status, $allowed, true)) {
             $status = 'PENDING';
         }
@@ -111,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Purchase order updated.');
         }
 
-        header('Location: ' . app_url('admin/purchasing.php'));
+        header('Location: ' . app_url('department/purchasing.php'));
         exit;
     }
 
@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute(['id' => $id]);
             flash_set('success', 'Purchase order deleted.');
         }
-        header('Location: ' . app_url('admin/purchasing.php'));
+        header('Location: ' . app_url('department/purchasing.php'));
         exit;
     }
 
@@ -137,18 +137,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $notifyInventory = $pdo->prepare('INSERT INTO department_notifications (target_department, message, status) VALUES (:target_department, :message, :status)');
                 $notifyInventory->execute([
                     'target_department' => 'INVENTORY',
-                    'message' => 'Delivered items are forwarded to inventory for stock update. PO ID #' . $id . '.',
+                    'message' => 'Delivered items are forwarded to inventory for stock update. Purchase order ID #' . $id . '.',
                     'status' => 'PENDING',
                 ]);
 
                 $pdo->commit();
-                flash_set('success', 'Items delivered: forwarded to inventory and purchase status updated.');
+                flash_set('success', 'Items delivered and forwarded to inventory for stock update.');
             } catch (Exception $e) {
                 $pdo->rollBack();
                 flash_set('error', 'Failed to forward delivered items to inventory.');
             }
         }
-        header('Location: ' . app_url('admin/purchasing.php'));
+        header('Location: ' . app_url('department/purchasing.php'));
         exit;
     }
 
@@ -157,25 +157,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($id > 0) {
             $pdo->beginTransaction();
             try {
-                $stmt = $pdo->prepare("UPDATE purchase_orders SET status = 'PENDING' WHERE id = :id");
+                $stmt = $pdo->prepare("UPDATE purchase_orders SET status = 'RETURNED' WHERE id = :id");
                 $stmt->execute(['id' => $id]);
 
                 $notify = $pdo->prepare('INSERT INTO department_notifications (target_department, message, status) VALUES (:target_department, :message, :status)');
                 $notify->execute([
                     'target_department' => 'PURCHASING',
-                    'message' => 'Follow up supplier for PO ID #' . $id . '. Back to waiting for delivery.',
+                    'message' => 'Follow up supplier for purchase order ID #' . $id . '. Delivery is still pending.',
                     'status' => 'PENDING',
                 ]);
 
                 $pdo->commit();
-                flash_set('success', 'Supplier follow-up recorded. Purchase order returned to waiting for delivery.');
+                flash_set('success', 'Supplier follow-up recorded.');
             } catch (Exception $e) {
                 $pdo->rollBack();
                 flash_set('error', 'Failed to record supplier follow-up.');
             }
         }
 
-        header('Location: ' . app_url('admin/purchasing.php'));
+        header('Location: ' . app_url('department/purchasing.php'));
         exit;
     }
 }
@@ -196,7 +196,7 @@ include __DIR__ . '/../partials/header.php';
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h2 class="text-2xl font-bold text-brand-700">Purchasing Department</h2>
-            <p class="text-sm text-slate-500">Receive low stock alerts, review low stock items, create purchase orders, contact suppliers, and wait for delivery.</p>
+            <p class="text-sm text-slate-500">Receive low stock alerts, create purchase orders, wait for delivery, follow up suppliers, and forward delivered items to inventory.</p>
         </div>
         <button data-modal-open="create-po-modal" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Create Purchase Order</button>
     </div>
@@ -205,7 +205,7 @@ include __DIR__ . '/../partials/header.php';
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
                 <h3 class="text-base font-semibold text-brand-700">Purchasing Notification Inbox</h3>
-                <p class="text-xs text-slate-500">Low-stock and return alerts sent to purchasing.</p>
+                <p class="text-xs text-slate-500">Low-stock and supplier follow-up alerts sent to purchasing.</p>
             </div>
             <?php if ($pendingNotifications): ?>
                 <form method="post">
@@ -313,7 +313,7 @@ include __DIR__ . '/../partials/header.php';
                         <td class="py-2 pr-3"><?= e(format_currency($po['unit_cost'])); ?></td>
                         <td class="py-2 pr-3"><?= e($po['supplier_name']); ?></td>
                         <td class="py-2 pr-3">
-                            <span class="rounded-full px-2 py-1 text-xs font-semibold <?= e(status_badge_class($po['status'])); ?>"><?= e($po['status']); ?></span>
+                            <span class="rounded-full px-2 py-1 text-xs font-semibold <?= e(status_badge_class($po['status'])); ?>"><?= e(display_status_label($po['status'])); ?></span>
                         </td>
                         <td class="py-2">
                             <div class="flex flex-wrap gap-2">
@@ -321,8 +321,8 @@ include __DIR__ . '/../partials/header.php';
                                 <button data-modal-open="edit-po-<?= (int)$po['id']; ?>" class="rounded-md bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-700">Edit</button>
                                 <button data-modal-open="contact-po-<?= (int)$po['id']; ?>" class="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">Contact Supplier</button>
                                 <button data-modal-open="wait-po-<?= (int)$po['id']; ?>" class="rounded-md bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">Wait for Delivery</button>
-                                <button data-modal-open="send-po-<?= (int)$po['id']; ?>" class="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Items Delivered (YES)</button>
-                                <button data-modal-open="followup-po-<?= (int)$po['id']; ?>" class="rounded-md bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700">Follow Up Supplier (NO)</button>
+                                <button data-modal-open="send-po-<?= (int)$po['id']; ?>" class="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Delivered (YES)</button>
+                                <button data-modal-open="followup-po-<?= (int)$po['id']; ?>" class="rounded-md bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700">Not Delivered (NO)</button>
                                 <button data-modal-open="delete-po-<?= (int)$po['id']; ?>" class="rounded-md bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700">Delete</button>
                             </div>
                         </td>
@@ -428,7 +428,7 @@ include __DIR__ . '/../partials/header.php';
                 <dt class="text-slate-500">Quantity</dt><dd class="font-medium"><?= (int)$po['quantity']; ?></dd>
                 <dt class="text-slate-500">Unit Cost</dt><dd class="font-medium"><?= e(format_currency($po['unit_cost'])); ?></dd>
                 <dt class="text-slate-500">Supplier</dt><dd class="font-medium"><?= e($po['supplier_name']); ?></dd>
-                <dt class="text-slate-500">Status</dt><dd class="font-medium"><?= e($po['status']); ?></dd>
+                <dt class="text-slate-500">Status</dt><dd class="font-medium"><?= e(display_status_label($po['status'])); ?></dd>
                 <dt class="text-slate-500">Created By</dt><dd class="font-medium"><?= e($po['created_by_name']); ?></dd>
             </dl>
             <div class="mt-5 flex justify-end">
@@ -460,8 +460,8 @@ include __DIR__ . '/../partials/header.php';
                 <div>
                     <label class="text-sm text-slate-600">Status</label>
                     <select name="status" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2">
-                        <?php foreach (['PENDING','SENT_TO_RECEIVING','INSPECTED_OK','INSPECTED_NOT_OK','RETURNED','STORED'] as $status): ?>
-                            <option value="<?= e($status); ?>" <?= $po['status'] === $status ? 'selected' : ''; ?>><?= e($status); ?></option>
+                        <?php foreach (['PENDING','SENT_TO_RECEIVING','RETURNED','STORED'] as $status): ?>
+                            <option value="<?= e($status); ?>" <?= $po['status'] === $status ? 'selected' : ''; ?>><?= e(display_status_label($status)); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -476,7 +476,7 @@ include __DIR__ . '/../partials/header.php';
     <div id="send-po-<?= (int)$po['id']; ?>" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
         <div class="w-full max-w-md rounded-xl bg-white p-6">
             <h3 class="text-lg font-semibold text-emerald-700">Items Delivered (YES)</h3>
-            <p class="mt-2 text-sm text-slate-600">Forward PO <span class="font-semibold"><?= e($po['po_number']); ?></span> to inventory/receiving and update purchase status?</p>
+            <p class="mt-2 text-sm text-slate-600">Forward PO <span class="font-semibold"><?= e($po['po_number']); ?></span> to inventory and update purchase status?</p>
             <form method="post" class="mt-4 flex justify-end gap-2">
                 <input type="hidden" name="action" value="send_to_receiving">
                 <input type="hidden" name="id" value="<?= (int)$po['id']; ?>">
@@ -515,7 +515,7 @@ include __DIR__ . '/../partials/header.php';
     <div id="followup-po-<?= (int)$po['id']; ?>" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
         <div class="w-full max-w-md rounded-xl bg-white p-6">
             <h3 class="text-lg font-semibold text-rose-700">Follow Up Supplier (NO)</h3>
-            <p class="mt-2 text-sm text-slate-600">Items not delivered yet. Follow up supplier and return to waiting for delivery?</p>
+            <p class="mt-2 text-sm text-slate-600">Items are not delivered yet. Record supplier follow-up for this purchase order?</p>
             <form method="post" class="mt-4 flex justify-end gap-2">
                 <input type="hidden" name="action" value="follow_up_supplier">
                 <input type="hidden" name="id" value="<?= (int)$po['id']; ?>">

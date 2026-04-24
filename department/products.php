@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_role(['INVENTORY', 'ADMIN']);
+require_role(['INVENTORY']);
 
 $pageTitle = 'Product Management';
 $activePage = 'products';
@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('error', 'Failed to create product. SKU may already exist.');
             }
         }
-        header('Location: ' . app_url('admin/products.php'));
+        header('Location: ' . app_url('department/products.php'));
         exit;
     }
 
@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('error', 'Failed to update product. SKU may already exist.');
             }
         }
-        header('Location: ' . app_url('admin/products.php'));
+        header('Location: ' . app_url('department/products.php'));
         exit;
     }
 
@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash_set('error', 'Cannot delete product that is used in transactions.');
             }
         }
-        header('Location: ' . app_url('admin/products.php'));
+        header('Location: ' . app_url('department/products.php'));
         exit;
     }
 }

@@ -25,6 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('error', 'Order not found for payment.');
         } elseif ($order['payment_status'] === 'PAID') {
             flash_set('error', 'Order is already paid.');
+        } elseif (($order['flow_status'] ?? '') !== 'ORDER_COMPLETE') {
+            flash_set('error', 'Only order-complete sales orders can be paid.');
         } elseif ($amountPaid < (float)$order['total_amount']) {
             flash_set('error', 'Amount paid is less than total amount due.');
         } elseif ((int)$order['quantity'] > (int)$order['stock_qty']) {
@@ -174,7 +176,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$unpaidOrdersStmt = $pdo->prepare('SELECT so.*, soi.quantity, soi.product_id, p.sku, p.product_name FROM sales_orders so JOIN sales_order_items soi ON soi.sales_order_id = so.id JOIN products p ON p.id = soi.product_id WHERE so.cashier_id = :cashier_id AND so.payment_status = :payment_status ORDER BY so.id DESC');
+$pendingCompletionStmt = $pdo->prepare("SELECT COUNT(*) FROM sales_orders WHERE cashier_id = :cashier_id AND payment_status = 'UNPAID' AND flow_status = 'ORDER_CONFIRMED'");
+$pendingCompletionStmt->execute(['cashier_id' => $user['id']]);
+$pendingCompletionCount = (int)$pendingCompletionStmt->fetchColumn();
+
+$unpaidOrdersStmt = $pdo->prepare("SELECT so.*, soi.quantity, soi.product_id, p.sku, p.product_name FROM sales_orders so JOIN sales_order_items soi ON soi.sales_order_id = so.id JOIN products p ON p.id = soi.product_id WHERE so.cashier_id = :cashier_id AND so.payment_status = :payment_status AND so.flow_status = 'ORDER_COMPLETE' ORDER BY so.id DESC");
 $unpaidOrdersStmt->execute([
     'cashier_id' => $user['id'],
     'payment_status' => 'UNPAID',
@@ -191,13 +197,19 @@ include __DIR__ . '/../partials/header.php';
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h2 class="text-2xl font-bold text-brand-700">Payments</h2>
-            <p class="text-sm text-slate-500">Process payment, issue receipt, and update stock records.</p>
+            <p class="text-sm text-slate-500">Process payment for completed sales orders, issue a receipt, and update stock records.</p>
         </div>
         <button data-modal-open="create-payment-modal" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Process Payment</button>
     </div>
 
+    <?php if ($pendingCompletionCount > 0): ?>
+        <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            <?= $pendingCompletionCount; ?> confirmed sales order<?= $pendingCompletionCount === 1 ? '' : 's are'; ?> waiting for order completion. Finish them in <a href="<?= e(app_url('cashier/orders.php')); ?>" class="font-semibold underline">Sales Orders</a> before payment.
+        </div>
+    <?php endif; ?>
+
     <section class="rounded-xl border border-brand-100 bg-white p-4 overflow-x-auto">
-        <h3 class="text-base font-semibold text-brand-700 mb-3">Unpaid Orders</h3>
+        <h3 class="text-base font-semibold text-brand-700 mb-3">Completed Unpaid Orders</h3>
         <table class="min-w-full text-sm">
             <thead>
             <tr class="border-b border-slate-100 text-left text-slate-500">

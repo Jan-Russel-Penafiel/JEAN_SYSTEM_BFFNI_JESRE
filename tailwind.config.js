@@ -2,7 +2,6 @@
 module.exports = {
   content: [
     './*.php',
-    './admin/**/*.php',
     './department/**/*.php',
     './cashier/**/*.php',
     './partials/**/*.php',

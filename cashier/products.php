@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'cashier_id' => $user['id'],
                     'total_amount' => $totalAmount,
                     'payment_status' => 'UNPAID',
-                    'flow_status' => 'ORDER_COMPLETE',
+                    'flow_status' => 'ORDER_CONFIRMED',
                 ]);
 
                 $salesOrderId = (int)$pdo->lastInsertId();
@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
 
                 $pdo->commit();
-                flash_set('success', 'Order confirmed and sales order generated. Proceed to payment.');
+                flash_set('success', 'Order confirmed and sales order generated. Complete the order in Sales Orders before payment.');
             } catch (Exception $e) {
                 $pdo->rollBack();
                 flash_set('error', 'Failed to create sales order.');
@@ -67,7 +67,7 @@ include __DIR__ . '/../partials/header.php';
 <div class="space-y-6">
     <div>
         <h2 class="text-2xl font-bold text-brand-700">Browse Product</h2>
-        <p class="text-sm text-slate-500">Choose product, confirm order, then generate sales order.</p>
+        <p class="text-sm text-slate-500">Choose product, confirm the order, generate the sales order, then send it to order completion.</p>
     </div>
 
     <section class="rounded-xl border border-brand-100 bg-white p-4 overflow-x-auto">
@@ -129,7 +129,7 @@ include __DIR__ . '/../partials/header.php';
     <div id="choose-product-<?= (int)$product['id']; ?>" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
         <div class="w-full max-w-lg rounded-xl bg-white p-6">
             <h3 class="text-lg font-semibold text-brand-700">Order Confirmation</h3>
-            <p class="mt-1 text-sm text-slate-500">Generate Sales Order for <?= e($product['product_name']); ?>.</p>
+            <p class="mt-1 text-sm text-slate-500">Generate a sales order for <?= e($product['product_name']); ?>. Payment is available after the order is marked complete.</p>
             <form method="post" class="mt-4 space-y-3">
                 <input type="hidden" name="action" value="create_order">
                 <input type="hidden" name="product_id" value="<?= (int)$product['id']; ?>">
@@ -140,7 +140,7 @@ include __DIR__ . '/../partials/header.php';
                 <p class="text-xs text-slate-500">Unit Price: <?= e(format_currency($product['price'])); ?></p>
                 <div class="flex justify-end gap-2">
                     <button type="button" data-modal-close class="rounded-lg border border-slate-200 px-4 py-2 text-sm">Cancel</button>
-                    <button type="submit" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white">Generate Sales Order</button>
+                    <button type="submit" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white">Confirm and Create Sales Order</button>
                 </div>
             </form>
         </div>

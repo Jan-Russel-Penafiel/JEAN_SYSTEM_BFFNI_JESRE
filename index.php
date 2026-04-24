@@ -9,12 +9,9 @@ if (!is_logged_in()) {
 $user = current_user();
 
 $roleRoutes = [
-    'ADMIN' => 'admin/dashboard.php',
     'CASHIER' => 'department/dashboard.php',
     'INVENTORY' => 'department/dashboard.php',
     'PURCHASING' => 'department/dashboard.php',
-    'RECEIVING' => 'department/dashboard.php',
-    'STORAGE' => 'department/dashboard.php',
     'ACCOUNTING' => 'department/dashboard.php',
 ];
 

@@ -23,7 +23,7 @@ if (!$receipt) {
 }
 
 $role = (string)($user['role'] ?? '');
-$receiptViewerRoles = ['ADMIN', 'ACCOUNTING'];
+$receiptViewerRoles = ['ACCOUNTING'];
 
 if ($role === 'CASHIER' && (int)$receipt['cashier_id'] !== (int)$user['id']) {
     header('Location: ' . app_url('unauthorized.php'));
@@ -36,7 +36,9 @@ if ($role !== 'CASHIER' && !in_array($role, $receiptViewerRoles, true)) {
 }
 
 $changeAmount = (float)$receipt['amount_paid'] - (float)$receipt['total_amount'];
-$backPath = ($user['role'] ?? '') === 'ADMIN' ? app_url('admin/accounting.php') : app_url('cashier/payments.php');
+$backPath = $role === 'ACCOUNTING'
+    ? app_url('department/accounting.php')
+    : app_url('cashier/payments.php');
 ?>
 <!doctype html>
 <html lang="en">

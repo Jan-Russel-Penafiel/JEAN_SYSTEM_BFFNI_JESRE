@@ -1,6 +1,5 @@
--- phpMyAdmin SQL Dump
+-- SQL Dump
 -- version 5.2.1
--- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
 -- Generation Time: Apr 20, 2026 at 12:19 PM
@@ -59,8 +58,8 @@ CREATE TABLE `department_notifications` (
 CREATE TABLE `inventory_records` (
   `id` int(11) NOT NULL,
   `product_id` int(11) NOT NULL,
-  `department` enum('INVENTORY','PURCHASING','RECEIVING','STORAGE','CASHIER') NOT NULL,
-  `change_type` enum('SALE','PURCHASE','RETURN','ADJUSTMENT','STORAGE_IN','STORAGE_OUT') NOT NULL,
+  `department` enum('INVENTORY','PURCHASING','CASHIER') NOT NULL,
+  `change_type` enum('SALE','PURCHASE','RETURN','ADJUSTMENT') NOT NULL,
   `availability_status` enum('YES','NO') DEFAULT NULL,
   `item_check_status` enum('YES','NO') DEFAULT NULL,
   `qty_before` int(11) NOT NULL,
@@ -126,23 +125,7 @@ CREATE TABLE `purchase_orders` (
   `quantity` int(11) NOT NULL,
   `unit_cost` decimal(12,2) NOT NULL DEFAULT 0.00,
   `supplier_name` varchar(150) NOT NULL,
-  `status` enum('PENDING','SENT_TO_RECEIVING','INSPECTED_OK','INSPECTED_NOT_OK','RETURNED','STORED') NOT NULL DEFAULT 'PENDING',
-  `created_by` int(11) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `receiving_reports`
---
-
-CREATE TABLE `receiving_reports` (
-  `id` int(11) NOT NULL,
-  `purchase_order_id` int(11) NOT NULL,
-  `inspected_qty` int(11) NOT NULL,
-  `items_ok` enum('YES','NO') NOT NULL,
-  `notes` varchar(255) DEFAULT NULL,
+  `status` enum('PENDING','SENT_TO_RECEIVING','RETURNED','STORED') NOT NULL DEFAULT 'PENDING',
   `created_by` int(11) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -181,23 +164,6 @@ CREATE TABLE `sales_order_items` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `storage_logs`
---
-
-CREATE TABLE `storage_logs` (
-  `id` int(11) NOT NULL,
-  `product_id` int(11) NOT NULL,
-  `quantity` int(11) NOT NULL,
-  `from_department` enum('INVENTORY','RECEIVING','PURCHASING') NOT NULL,
-  `action` enum('STORE','RETURN_TO_PURCHASING') NOT NULL,
-  `notes` varchar(255) DEFAULT NULL,
-  `created_by` int(11) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- --------------------------------------------------------
-
---
 -- Table structure for table `users`
 --
 
@@ -206,7 +172,7 @@ CREATE TABLE `users` (
   `name` varchar(120) NOT NULL,
   `username` varchar(50) NOT NULL,
   `password` varchar(255) NOT NULL,
-  `role` enum('ADMIN','CASHIER','INVENTORY','PURCHASING','RECEIVING','STORAGE','ACCOUNTING') NOT NULL,
+  `role` enum('CASHIER','INVENTORY','PURCHASING','ACCOUNTING') NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -215,13 +181,10 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `name`, `username`, `password`, `role`, `created_at`) VALUES
-(1, 'System Admin', 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ADMIN', '2026-04-15 06:12:25'),
-(2, 'Main Cashier', 'cashier', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'CASHIER', '2026-04-15 06:12:25'),
-(3, 'Inventory Officer', 'inventory', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'INVENTORY', '2026-04-15 06:12:25'),
-(4, 'Purchasing Officer', 'purchasing', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'PURCHASING', '2026-04-15 06:12:25'),
-(5, 'Receiving Officer', 'receiving', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'RECEIVING', '2026-04-15 06:12:25'),
-(6, 'Storage Officer', 'storage', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'STORAGE', '2026-04-15 06:12:25'),
-(7, 'Accounting Officer', 'accounting', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ACCOUNTING', '2026-04-15 06:12:25');
+(1, 'Main Cashier', 'cashier', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'CASHIER', '2026-04-15 06:12:25'),
+(2, 'Inventory Officer', 'inventory', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'INVENTORY', '2026-04-15 06:12:25'),
+(3, 'Purchasing Officer', 'purchasing', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'PURCHASING', '2026-04-15 06:12:25'),
+(4, 'Accounting Officer', 'accounting', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ACCOUNTING', '2026-04-15 06:12:25');
 
 --
 -- Indexes for dumped tables
@@ -271,14 +234,6 @@ ALTER TABLE `purchase_orders`
   ADD KEY `created_by` (`created_by`);
 
 --
--- Indexes for table `receiving_reports`
---
-ALTER TABLE `receiving_reports`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `purchase_order_id` (`purchase_order_id`),
-  ADD KEY `created_by` (`created_by`);
-
---
 -- Indexes for table `sales_orders`
 --
 ALTER TABLE `sales_orders`
@@ -293,14 +248,6 @@ ALTER TABLE `sales_order_items`
   ADD PRIMARY KEY (`id`),
   ADD KEY `sales_order_id` (`sales_order_id`),
   ADD KEY `product_id` (`product_id`);
-
---
--- Indexes for table `storage_logs`
---
-ALTER TABLE `storage_logs`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `product_id` (`product_id`),
-  ADD KEY `created_by` (`created_by`);
 
 --
 -- Indexes for table `users`
@@ -350,12 +297,6 @@ ALTER TABLE `purchase_orders`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `receiving_reports`
---
-ALTER TABLE `receiving_reports`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
 -- AUTO_INCREMENT for table `sales_orders`
 --
 ALTER TABLE `sales_orders`
@@ -365,12 +306,6 @@ ALTER TABLE `sales_orders`
 -- AUTO_INCREMENT for table `sales_order_items`
 --
 ALTER TABLE `sales_order_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `storage_logs`
---
-ALTER TABLE `storage_logs`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
@@ -404,13 +339,6 @@ ALTER TABLE `purchase_orders`
   ADD CONSTRAINT `purchase_orders_ibfk_2` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`);
 
 --
--- Constraints for table `receiving_reports`
---
-ALTER TABLE `receiving_reports`
-  ADD CONSTRAINT `receiving_reports_ibfk_1` FOREIGN KEY (`purchase_order_id`) REFERENCES `purchase_orders` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `receiving_reports_ibfk_2` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`);
-
---
 -- Constraints for table `sales_orders`
 --
 ALTER TABLE `sales_orders`
@@ -422,13 +350,6 @@ ALTER TABLE `sales_orders`
 ALTER TABLE `sales_order_items`
   ADD CONSTRAINT `sales_order_items_ibfk_1` FOREIGN KEY (`sales_order_id`) REFERENCES `sales_orders` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `sales_order_items_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`);
-
---
--- Constraints for table `storage_logs`
---
-ALTER TABLE `storage_logs`
-  ADD CONSTRAINT `storage_logs_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`),
-  ADD CONSTRAINT `storage_logs_ibfk_2` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`);
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

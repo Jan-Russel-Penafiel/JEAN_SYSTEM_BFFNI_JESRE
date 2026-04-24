@@ -2,43 +2,20 @@
 $role = $user['role'] ?? '';
 $displayName = $user['name'] ?? 'User';
 
-if ($role === 'ADMIN') {
-    $displayName = 'System Admin';
-}
-
 $menu = [];
 $roleMenus = [
-    'ADMIN' => [
-        ['key' => 'admin_dashboard', 'label' => 'Dashboard', 'path' => app_url('admin/dashboard.php')],
-        ['key' => 'inventory', 'label' => 'Inventory', 'path' => app_url('admin/inventory.php')],
-        ['key' => 'purchasing', 'label' => 'Purchasing', 'path' => app_url('admin/purchasing.php')],
-        ['key' => 'receiving', 'label' => 'Receiving', 'path' => app_url('admin/receiving.php')],
-        ['key' => 'storage', 'label' => 'Storage', 'path' => app_url('admin/storage.php')],
-        ['key' => 'accounting', 'label' => 'Accounting', 'path' => app_url('admin/accounting.php')],
-        ['key' => 'notifications', 'label' => 'Notifications', 'path' => app_url('admin/notifications.php')],
-        ['key' => 'products', 'label' => 'Products', 'path' => app_url('admin/products.php')],
-        ['key' => 'users', 'label' => 'Users', 'path' => app_url('admin/users.php')],
-    ],
     'INVENTORY' => [
         ['key' => 'department_home', 'label' => 'Department Home', 'path' => app_url('department/dashboard.php')],
-        ['key' => 'inventory', 'label' => 'Inventory', 'path' => app_url('admin/inventory.php')],
-        ['key' => 'products', 'label' => 'Products', 'path' => app_url('admin/products.php')],
+        ['key' => 'inventory', 'label' => 'Inventory', 'path' => app_url('department/inventory.php')],
+        ['key' => 'products', 'label' => 'Products', 'path' => app_url('department/products.php')],
     ],
     'PURCHASING' => [
         ['key' => 'department_home', 'label' => 'Department Home', 'path' => app_url('department/dashboard.php')],
-        ['key' => 'purchasing', 'label' => 'Purchasing', 'path' => app_url('admin/purchasing.php')],
-    ],
-    'RECEIVING' => [
-        ['key' => 'department_home', 'label' => 'Department Home', 'path' => app_url('department/dashboard.php')],
-        ['key' => 'receiving', 'label' => 'Receiving', 'path' => app_url('admin/receiving.php')],
-    ],
-    'STORAGE' => [
-        ['key' => 'department_home', 'label' => 'Department Home', 'path' => app_url('department/dashboard.php')],
-        ['key' => 'storage', 'label' => 'Storage', 'path' => app_url('admin/storage.php')],
+        ['key' => 'purchasing', 'label' => 'Purchasing', 'path' => app_url('department/purchasing.php')],
     ],
     'ACCOUNTING' => [
         ['key' => 'department_home', 'label' => 'Department Home', 'path' => app_url('department/dashboard.php')],
-        ['key' => 'accounting', 'label' => 'Accounting', 'path' => app_url('admin/accounting.php')],
+        ['key' => 'accounting', 'label' => 'Accounting', 'path' => app_url('department/accounting.php')],
     ],
     'CASHIER' => [
         ['key' => 'department_home', 'label' => 'Department Home', 'path' => app_url('department/dashboard.php')],

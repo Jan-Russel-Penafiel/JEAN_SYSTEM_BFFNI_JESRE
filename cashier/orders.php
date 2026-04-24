@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'cashier_id' => $user['id'],
                     'total_amount' => $totalAmount,
                     'payment_status' => 'UNPAID',
-                    'flow_status' => 'ORDER_COMPLETE',
+                    'flow_status' => 'ORDER_CONFIRMED',
                 ]);
 
                 $salesOrderId = (int)$pdo->lastInsertId();
@@ -47,11 +47,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
 
                 $pdo->commit();
-                flash_set('success', 'Sales order created successfully.');
+                flash_set('success', 'Sales order created successfully. Mark it as order complete before payment.');
             } catch (Exception $e) {
                 $pdo->rollBack();
                 flash_set('error', 'Failed to create sales order.');
             }
+        }
+
+        header('Location: ' . app_url('cashier/orders.php'));
+        exit;
+    }
+
+    if ($action === 'complete_order') {
+        $orderId = (int)($_POST['order_id'] ?? 0);
+
+        $orderStmt = $pdo->prepare('SELECT * FROM sales_orders WHERE id = :id AND cashier_id = :cashier_id LIMIT 1');
+        $orderStmt->execute([
+            'id' => $orderId,
+            'cashier_id' => $user['id'],
+        ]);
+        $order = $orderStmt->fetch();
+
+        if (!$order) {
+            flash_set('error', 'Order not found.');
+        } elseif ($order['payment_status'] === 'PAID') {
+            flash_set('error', 'Paid orders are already complete.');
+        } elseif ($order['flow_status'] === 'ORDER_COMPLETE') {
+            flash_set('error', 'Order is already marked complete.');
+        } else {
+            $updateOrder = $pdo->prepare("UPDATE sales_orders SET flow_status = 'ORDER_COMPLETE' WHERE id = :id");
+            $updateOrder->execute(['id' => $orderId]);
+            flash_set('success', 'Order marked complete. Payment can now be processed.');
         }
 
         header('Location: ' . app_url('cashier/orders.php'));
@@ -143,7 +169,7 @@ include __DIR__ . '/../partials/header.php';
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h2 class="text-2xl font-bold text-brand-700">Sales Orders</h2>
-            <p class="text-sm text-slate-500">Order confirmation, generate sales order, and manage unpaid orders.</p>
+            <p class="text-sm text-slate-500">Review confirmed sales orders, mark them complete, and send only completed orders to payment.</p>
         </div>
         <button data-modal-open="create-order-modal" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Create Order</button>
     </div>
@@ -172,13 +198,18 @@ include __DIR__ . '/../partials/header.php';
                         <td class="py-2 pr-3"><?= (int)$order['quantity']; ?></td>
                         <td class="py-2 pr-3"><?= e(format_currency($order['total_amount'])); ?></td>
                         <td class="py-2 pr-3"><span class="rounded-full px-2 py-1 text-xs font-semibold <?= e(status_badge_class($order['payment_status'])); ?>"><?= e($order['payment_status']); ?></span></td>
-                        <td class="py-2 pr-3"><?= e($order['flow_status']); ?></td>
+                        <td class="py-2 pr-3">
+                            <span class="rounded-full px-2 py-1 text-xs font-semibold <?= e(status_badge_class($order['flow_status'])); ?>"><?= e($order['flow_status']); ?></span>
+                        </td>
                         <td class="py-2">
                             <div class="flex flex-wrap gap-2">
                                 <button data-modal-open="view-order-<?= (int)$order['id']; ?>" class="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">View</button>
                                 <button data-modal-open="edit-order-<?= (int)$order['id']; ?>" class="rounded-md bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-700">Edit</button>
+                                <?php if ($order['payment_status'] === 'UNPAID' && $order['flow_status'] !== 'ORDER_COMPLETE'): ?>
+                                    <button data-modal-open="complete-order-<?= (int)$order['id']; ?>" class="rounded-md bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">Order Complete</button>
+                                <?php endif; ?>
                                 <button data-modal-open="delete-order-<?= (int)$order['id']; ?>" class="rounded-md bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700">Delete</button>
-                                <?php if ($order['payment_status'] === 'UNPAID'): ?>
+                                <?php if ($order['payment_status'] === 'UNPAID' && $order['flow_status'] === 'ORDER_COMPLETE'): ?>
                                     <a href="<?= e(app_url('cashier/payments.php')); ?>" class="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Payment</a>
                                 <?php endif; ?>
                             </div>
@@ -254,6 +285,19 @@ include __DIR__ . '/../partials/header.php';
                     <button type="button" data-modal-close class="rounded-lg border border-slate-200 px-4 py-2 text-sm">Cancel</button>
                     <button type="submit" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white" <?= $order['payment_status'] === 'PAID' ? 'disabled' : ''; ?>>Save</button>
                 </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="complete-order-<?= (int)$order['id']; ?>" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
+        <div class="w-full max-w-md rounded-xl bg-white p-6">
+            <h3 class="text-lg font-semibold text-amber-700">Mark Order Complete</h3>
+            <p class="mt-2 text-sm text-slate-600">Finalize order <span class="font-semibold"><?= e($order['order_no']); ?></span> so it can move to payment?</p>
+            <form method="post" class="mt-5 flex justify-end gap-2">
+                <input type="hidden" name="action" value="complete_order">
+                <input type="hidden" name="order_id" value="<?= (int)$order['id']; ?>">
+                <button type="button" data-modal-close class="rounded-lg border border-slate-200 px-4 py-2 text-sm">Cancel</button>
+                <button type="submit" class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white">Mark Complete</button>
             </form>
         </div>
     </div>

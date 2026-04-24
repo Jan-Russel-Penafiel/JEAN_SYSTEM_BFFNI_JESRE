@@ -51,5 +51,4 @@ PREPARE stmt_unique FROM @unique_sql;
 EXECUTE stmt_unique;
 DEALLOCATE PREPARE stmt_unique;
 
-UPDATE users SET username = 'admin' WHERE username = 'admin@jzsisters.local';
 UPDATE users SET username = 'cashier' WHERE username = 'cashier@jzsisters.local';

@@ -12,17 +12,14 @@ Simplified procedural PHP + MySQL system using Tailwind CSS with crimson-red and
 
 ## Flowchart-Based Modules
 - Authentication:
-  - Public Sign Up creates cashier accounts only
-  - Sign In supports Admin and all department roles
+  - Public Sign Up creates accounts for the active departments
+  - Sign In supports Cashier, Inventory, Purchasing, and Accounting
 - Cashier Flow:
   - Dashboard -> Browse Products -> Choose Product -> Order Confirmation
-  - Generate Sales Order -> Payment -> Update Stock Records -> End
-- Admin Flow:
-  - Dashboard
+  - Generate Sales Order -> Mark Order Complete -> Payment -> Update Stock Records -> End
+- Department Workspaces:
   - Inventory Department
   - Purchasing Department
-  - Receiving Department
-  - Storage Department
   - Accounting Department
 - System Logic:
   - YES (approved/available): move to next process
@@ -31,7 +28,7 @@ Simplified procedural PHP + MySQL system using Tailwind CSS with crimson-red and
 ## Folder Structure
 - `includes/` shared db/auth/helpers bootstrap
 - `partials/` layout header/footer/sidebar
-- `admin/` admin department pages
+- `department/` shared department home plus inventory, products, purchasing, and accounting pages
 - `cashier/` cashier flow pages
 - `receipt.php` printable receipt page
 - `assets/js/modal.js` modal open/close script
@@ -41,8 +38,8 @@ Simplified procedural PHP + MySQL system using Tailwind CSS with crimson-red and
 1. Place project in `C:\xampp\htdocs\client1`.
 2. Start Apache and MySQL in XAMPP Control Panel.
 3. Import `database.sql` into MySQL:
-   - Open `http://localhost/phpmyadmin`
-   - Create/import using the `database.sql` file
+  - Open your MySQL import tool in XAMPP
+  - Create/import using the `database.sql` file
 4. Configure `config.php`:
   - `app.base_url`: default URL path (example: `/client1`)
   - `database.host`
@@ -77,12 +74,9 @@ Simplified procedural PHP + MySQL system using Tailwind CSS with crimson-red and
 - If dependencies are updated, run `npm run build:ui` again before deployment.
 
 ## Default Accounts
-- Admin: `admin`
 - Cashier: `cashier`
 - Inventory: `inventory`
 - Purchasing: `purchasing`
-- Receiving: `receiving`
-- Storage: `storage`
 - Accounting: `accounting`
 - Password for all default accounts: `password`
 
@@ -90,12 +84,11 @@ Simplified procedural PHP + MySQL system using Tailwind CSS with crimson-red and
 - CRUD actions are modal-based across major modules.
 - Payment posting updates stock and creates inventory records.
 - After successful payment, printable receipt opens automatically.
-- Receiving inspection YES/NO path affects storage and purchasing flows.
 - Inventory module supports flow actions for release item, tag out of stock, notify purchasing, and stock report export (CSV).
 - Purchasing module includes low-stock review, supplier contact/wait loop, delivered YES forwarding to inventory, and notification inbox mark-as-read actions.
 
 ## New Quick Access
-- Cashier and admin receipt view: `/client1/receipt.php?payment_id=PAYMENT_ID`
+- Cashier and accounting receipt view: `/client1/receipt.php?payment_id=PAYMENT_ID`
 
 ## Migration Note (Email to Username)
 - New installs already use `username` in `users` table.
@@ -105,3 +98,7 @@ Simplified procedural PHP + MySQL system using Tailwind CSS with crimson-red and
 ## Migration Note (Department Roles)
 - For existing databases, run this migration SQL once to enable department-specific roles:
   - `migrations/2026_04_15_department_roles_and_defaults.sql`
+
+## Migration Note (Legacy Schema Cleanup)
+- For existing databases that still include old receiving/storage schema, run this cleanup SQL once:
+  - `migrations/2026_04_24_remove_legacy_receiving_storage_schema.sql`

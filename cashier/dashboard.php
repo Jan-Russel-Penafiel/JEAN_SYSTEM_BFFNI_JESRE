@@ -24,7 +24,7 @@ include __DIR__ . '/../partials/header.php';
 <div class="space-y-6">
     <div>
         <h2 class="text-2xl font-bold text-brand-700">Cashier Dashboard</h2>
-        <p class="text-sm text-slate-500">Browse products, confirm orders, process payment, and update stock.</p>
+        <p class="text-sm text-slate-500">Browse products, confirm orders, mark sales orders complete, process payment, and issue receipts.</p>
     </div>
 
     <div class="grid gap-4 sm:grid-cols-3">
