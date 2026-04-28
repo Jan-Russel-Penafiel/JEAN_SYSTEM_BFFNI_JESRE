@@ -430,8 +430,8 @@ include __DIR__ . '/../partials/header.php';
         </div>
         <div class="flex flex-wrap gap-2">
             <a href="<?= e(app_url('department/inventory.php')); ?>?export=stock_report_csv" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Export CSV</a>
-            <a href="<?= e(app_url('department/inventory.php')); ?>?export=inventory_pdf" target="_blank" class="rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800">Print / PDF</a>
-            <a href="<?= e(app_url('department/inventory.php')); ?>?export=inventory_word" class="rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-800">Export Word</a>
+            <a href="<?= e(app_url('department/inventory.php')); ?>?export=inventory_pdf" target="_blank" class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700">Print / PDF</a>
+            <a href="<?= e(app_url('department/inventory.php')); ?>?export=inventory_word" class="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900">Export Word</a>
             <button data-modal-open="record-inventory-modal" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Record Data</button>
             <button data-modal-open="quick-po-modal" class="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900">Create Purchase Order</button>
         </div>
