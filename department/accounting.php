@@ -621,8 +621,6 @@ include __DIR__ . '/../partials/header.php';
                                 <td class="py-2">
                                     <div class="flex flex-wrap gap-2">
                                         <button data-modal-open="view-expense-<?= (int)$expense['id']; ?>" class="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">View</button>
-                                        <button data-modal-open="edit-expense-<?= (int)$expense['id']; ?>" class="rounded-md bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-700">Edit</button>
-                                        <button data-modal-open="delete-expense-<?= (int)$expense['id']; ?>" class="rounded-md bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700">Delete</button>
                                     </div>
                                 </td>
                             </tr>
