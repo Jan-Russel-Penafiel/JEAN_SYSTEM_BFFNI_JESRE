@@ -390,6 +390,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'created_by' => $user['id'],
                 ]);
 
+                $expenseAmount = $receivedQty * (float)$purchaseOrder['unit_cost'];
+                $expenseDescription = 'Inventory purchase for PO ' . $purchaseOrder['po_number'] . ' - ' . $purchaseOrder['sku'] . ' ' . $purchaseOrder['product_name'] . ' x' . $receivedQty;
+                $insertExpense = $pdo->prepare('INSERT INTO accounting_expenses (expense_date, category, description, amount) VALUES (:expense_date, :category, :description, :amount)');
+                $insertExpense->execute([
+                    'expense_date' => date('Y-m-d'),
+                    'category' => 'Purchases',
+                    'description' => $expenseDescription,
+                    'amount' => $expenseAmount,
+                ]);
+
                 $updatePO = $pdo->prepare("UPDATE purchase_orders SET status = 'STORED' WHERE id = :id AND status = 'SENT_TO_RECEIVING'");
                 $updatePO->execute(['id' => $purchaseOrderId]);
 

@@ -263,8 +263,8 @@ include __DIR__ . '/../partials/header.php';
             <p class="text-sm text-slate-500">Receive low stock alerts, create purchase orders, wait for delivery, follow up suppliers, and forward delivered items to inventory.</p>
         </div>
         <div class="flex flex-wrap gap-2">
-            <a href="<?= e(app_url('department/purchasing.php')); ?>?export=purchasing_pdf" target="_blank" class="rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800">Print / PDF</a>
-            <a href="<?= e(app_url('department/purchasing.php')); ?>?export=purchasing_word" class="rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-800">Export Word</a>
+            <a href="<?= e(app_url('department/purchasing.php')); ?>?export=purchasing_pdf" target="_blank" class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700">Print / PDF</a>
+            <a href="<?= e(app_url('department/purchasing.php')); ?>?export=purchasing_word" class="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900">Export Word</a>
             <button data-modal-open="create-po-modal" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Create Purchase Order</button>
         </div>
     </div>
