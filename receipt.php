@@ -55,6 +55,9 @@ $backPath = $role === 'ACCOUNTING'
             body {
                 background: #ffffff;
             }
+            .print-qr img {
+                display: block !important;
+            }
         }
     </style>
 </head>
@@ -124,13 +127,46 @@ $backPath = $role === 'ACCOUNTING'
             </div>
         </div>
 
+        <?php if (in_array($receipt['payment_method'], ['GCash', 'Maya'], true)): ?>
+        <div class="mt-5 border-t border-dashed border-brand-100 pt-4 print-qr">
+            <p class="mb-2 text-center text-xs font-semibold text-slate-600"><?= e($receipt['payment_method']); ?> Payment QR Code</p>
+            <div id="qr-code" class="flex justify-center"></div>
+            <p class="mt-2 text-center text-xs text-slate-400">Scan to verify payment &mdash; <?= e($receipt['receipt_no']); ?></p>
+        </div>
+        <?php endif; ?>
+
         <p class="mt-6 text-center text-xs text-slate-400">Thank you for shopping with JZ Sisters Trading OPC.</p>
     </div>
 </div>
+<?php if (in_array($receipt['payment_method'], ['GCash', 'Maya'], true)): ?>
+<script src="<?= e(asset_url('vendor/qrcodejs/qrcode.min.js')); ?>"></script>
+<script>
+    (function () {
+        var qrData = <?= json_encode(
+            $receipt['payment_method'] . '|' .
+            $receipt['receipt_no'] . '|' .
+            $receipt['order_no'] . '|' .
+            'PHP ' . number_format((float)$receipt['total_amount'], 2) . '|' .
+            $receipt['paid_at']
+        ); ?>;
+        var container = document.getElementById('qr-code');
+        if (container && typeof QRCode !== 'undefined') {
+            new QRCode(container, {
+                text: qrData,
+                width: 160,
+                height: 160,
+                colorDark: '#1e293b',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.M,
+            });
+        }
+    })();
+</script>
+<?php endif; ?>
 <script>
     if (<?= $autoPrint ? 'true' : 'false'; ?>) {
         window.addEventListener('load', function () {
-            window.print();
+            setTimeout(function () { window.print(); }, 600);
         });
     }
 </script>

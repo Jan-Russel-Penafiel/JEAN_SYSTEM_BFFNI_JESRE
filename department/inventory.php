@@ -32,6 +32,60 @@ if (($_GET['export'] ?? '') === 'stock_report_csv') {
     exit;
 }
 
+if (($_GET['export'] ?? '') === 'inventory_pdf') {
+    $reportRows = $pdo->query("SELECT sku, product_name, stock_qty, reorder_level, CASE WHEN stock_qty <= 0 THEN 'OUT_OF_STOCK' WHEN stock_qty <= reorder_level THEN 'LOW_STOCK' ELSE 'AVAILABLE' END AS stock_status FROM products ORDER BY product_name ASC")->fetchAll();
+    $records = $pdo->query('SELECT ir.*, p.product_name, p.sku, u.name AS created_by_name FROM inventory_records ir JOIN products p ON p.id = ir.product_id JOIN users u ON u.id = ir.created_by ORDER BY ir.id DESC LIMIT 100')->fetchAll();
+
+    header('Content-Type: text/html; charset=UTF-8');
+    echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Inventory Report</title>';
+    echo '<style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px;color:#222}h1{color:#8b0000;font-size:18px}h2{color:#8b0000;font-size:14px;margin-top:20px}table{width:100%;border-collapse:collapse;margin-top:8px}th{background:#8b0000;color:#fff;padding:6px 8px;text-align:left}td{padding:5px 8px;border-bottom:1px solid #e2e8f0}.meta{color:#64748b;font-size:11px;margin-bottom:16px}</style>';
+    echo '</head><body>';
+    echo '<h1>JZ Sisters Trading OPC &mdash; Inventory Report</h1>';
+    echo '<p class="meta">Generated: ' . date('F d, Y h:i A') . '</p>';
+    echo '<h2>Stock Availability</h2>';
+    echo '<table><thead><tr><th>SKU</th><th>Product Name</th><th>Stock Qty</th><th>Reorder Level</th><th>Status</th></tr></thead><tbody>';
+    foreach ($reportRows as $row) {
+        echo '<tr><td>' . htmlspecialchars($row['sku']) . '</td><td>' . htmlspecialchars($row['product_name']) . '</td><td>' . (int)$row['stock_qty'] . '</td><td>' . (int)$row['reorder_level'] . '</td><td>' . htmlspecialchars($row['stock_status']) . '</td></tr>';
+    }
+    echo '</tbody></table>';
+    echo '<h2>Inventory Records (Last 100)</h2>';
+    echo '<table><thead><tr><th>Date</th><th>SKU</th><th>Product</th><th>Type</th><th>Before</th><th>Change</th><th>After</th><th>Availability</th><th>Remarks</th></tr></thead><tbody>';
+    foreach ($records as $rec) {
+        echo '<tr><td>' . htmlspecialchars($rec['created_at']) . '</td><td>' . htmlspecialchars($rec['sku']) . '</td><td>' . htmlspecialchars($rec['product_name']) . '</td><td>' . htmlspecialchars($rec['change_type']) . '</td><td>' . (int)$rec['qty_before'] . '</td><td>' . (int)$rec['qty_change'] . '</td><td>' . (int)$rec['qty_after'] . '</td><td>' . htmlspecialchars($rec['availability_status'] ?? '-') . '</td><td>' . htmlspecialchars($rec['remarks'] ?? '') . '</td></tr>';
+    }
+    echo '</tbody></table>';
+    echo '<script>window.onload=function(){window.print();}</script>';
+    echo '</body></html>';
+    exit;
+}
+
+if (($_GET['export'] ?? '') === 'inventory_word') {
+    $reportRows = $pdo->query("SELECT sku, product_name, stock_qty, reorder_level, CASE WHEN stock_qty <= 0 THEN 'OUT_OF_STOCK' WHEN stock_qty <= reorder_level THEN 'LOW_STOCK' ELSE 'AVAILABLE' END AS stock_status FROM products ORDER BY product_name ASC")->fetchAll();
+    $records = $pdo->query('SELECT ir.*, p.product_name, p.sku, u.name AS created_by_name FROM inventory_records ir JOIN products p ON p.id = ir.product_id JOIN users u ON u.id = ir.created_by ORDER BY ir.id DESC LIMIT 100')->fetchAll();
+
+    $filename = 'inventory-report-' . date('Y-m-d') . '.doc';
+    header('Content-Type: application/msword');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+    echo '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="UTF-8"></head><body>';
+    echo '<h1 style="color:#8b0000">JZ Sisters Trading OPC &mdash; Inventory Report</h1>';
+    echo '<p style="color:#64748b;font-size:11pt">Generated: ' . date('F d, Y h:i A') . '</p>';
+    echo '<h2 style="color:#8b0000">Stock Availability</h2>';
+    echo '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr style="background:#8b0000;color:#fff"><th>SKU</th><th>Product Name</th><th>Stock Qty</th><th>Reorder Level</th><th>Status</th></tr></thead><tbody>';
+    foreach ($reportRows as $row) {
+        echo '<tr><td>' . htmlspecialchars($row['sku']) . '</td><td>' . htmlspecialchars($row['product_name']) . '</td><td>' . (int)$row['stock_qty'] . '</td><td>' . (int)$row['reorder_level'] . '</td><td>' . htmlspecialchars($row['stock_status']) . '</td></tr>';
+    }
+    echo '</tbody></table>';
+    echo '<h2 style="color:#8b0000">Inventory Records (Last 100)</h2>';
+    echo '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr style="background:#8b0000;color:#fff"><th>Date</th><th>SKU</th><th>Product</th><th>Type</th><th>Before</th><th>Change</th><th>After</th><th>Availability</th><th>Remarks</th></tr></thead><tbody>';
+    foreach ($records as $rec) {
+        echo '<tr><td>' . htmlspecialchars($rec['created_at']) . '</td><td>' . htmlspecialchars($rec['sku']) . '</td><td>' . htmlspecialchars($rec['product_name']) . '</td><td>' . htmlspecialchars($rec['change_type']) . '</td><td>' . (int)$rec['qty_before'] . '</td><td>' . (int)$rec['qty_change'] . '</td><td>' . (int)$rec['qty_after'] . '</td><td>' . htmlspecialchars($rec['availability_status'] ?? '-') . '</td><td>' . htmlspecialchars($rec['remarks'] ?? '') . '</td></tr>';
+    }
+    echo '</tbody></table>';
+    echo '</body></html>';
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
@@ -365,7 +419,9 @@ include __DIR__ . '/../partials/header.php';
             <p class="text-sm text-slate-500">Check stock availability, release item, tag out of stock, record shortages, and update stock after purchasing deliveries.</p>
         </div>
         <div class="flex flex-wrap gap-2">
-            <a href="<?= e(app_url('department/inventory.php')); ?>?export=stock_report_csv" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Export Stock Report</a>
+            <a href="<?= e(app_url('department/inventory.php')); ?>?export=stock_report_csv" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Export CSV</a>
+            <a href="<?= e(app_url('department/inventory.php')); ?>?export=inventory_pdf" target="_blank" class="rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800">Print / PDF</a>
+            <a href="<?= e(app_url('department/inventory.php')); ?>?export=inventory_word" class="rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-800">Export Word</a>
             <button data-modal-open="record-inventory-modal" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Record Data</button>
             <button data-modal-open="quick-po-modal" class="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900">Create Purchase Order</button>
         </div>
@@ -467,7 +523,7 @@ include __DIR__ . '/../partials/header.php';
                 <th class="py-2 pr-3">Change</th>
                 <th class="py-2 pr-3">After</th>
                 <th class="py-2 pr-3">Availability</th>
-                <th class="py-2">Actions</th>
+                <th class="py-2">View</th>
             </tr>
             </thead>
             <tbody>
@@ -484,11 +540,7 @@ include __DIR__ . '/../partials/header.php';
                         <td class="py-2 pr-3"><?= (int)$record['qty_after']; ?></td>
                         <td class="py-2 pr-3"><?= e($record['availability_status'] ?? '-'); ?></td>
                         <td class="py-2">
-                            <div class="flex flex-wrap gap-2">
-                                <button data-modal-open="view-record-<?= (int)$record['id']; ?>" class="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">View</button>
-                                <button data-modal-open="edit-record-<?= (int)$record['id']; ?>" class="rounded-md bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-700">Edit</button>
-                                <button data-modal-open="delete-record-<?= (int)$record['id']; ?>" class="rounded-md bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700">Delete</button>
-                            </div>
+                            <button data-modal-open="view-record-<?= (int)$record['id']; ?>" class="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">View</button>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -670,52 +722,6 @@ include __DIR__ . '/../partials/header.php';
         </div>
     </div>
 
-    <div id="edit-record-<?= (int)$record['id']; ?>" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
-        <div class="w-full max-w-lg rounded-xl bg-white p-6">
-            <h3 class="text-lg font-semibold text-brand-700">Edit Inventory Record</h3>
-            <form method="post" class="mt-4 space-y-3">
-                <input type="hidden" name="action" value="update_record">
-                <input type="hidden" name="id" value="<?= (int)$record['id']; ?>">
-                <div class="grid md:grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-sm text-slate-600">Availability</label>
-                        <select name="availability_status" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2">
-                            <option value="YES" <?= ($record['availability_status'] ?? '') === 'YES' ? 'selected' : ''; ?>>YES</option>
-                            <option value="NO" <?= ($record['availability_status'] ?? '') === 'NO' ? 'selected' : ''; ?>>NO</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="text-sm text-slate-600">Items OK</label>
-                        <select name="item_check_status" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2">
-                            <option value="YES" <?= ($record['item_check_status'] ?? '') === 'YES' ? 'selected' : ''; ?>>YES</option>
-                            <option value="NO" <?= ($record['item_check_status'] ?? '') === 'NO' ? 'selected' : ''; ?>>NO</option>
-                        </select>
-                    </div>
-                </div>
-                <div>
-                    <label class="text-sm text-slate-600">Remarks</label>
-                    <textarea name="remarks" rows="2" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"><?= e($record['remarks']); ?></textarea>
-                </div>
-                <div class="flex justify-end gap-2">
-                    <button type="button" data-modal-close class="rounded-lg border border-slate-200 px-4 py-2 text-sm">Cancel</button>
-                    <button type="submit" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white">Save</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="delete-record-<?= (int)$record['id']; ?>" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
-        <div class="w-full max-w-md rounded-xl bg-white p-6">
-            <h3 class="text-lg font-semibold text-rose-700">Delete Record</h3>
-            <p class="mt-2 text-sm text-slate-600">Delete inventory record #<?= (int)$record['id']; ?>?</p>
-            <form method="post" class="mt-5 flex justify-end gap-2">
-                <input type="hidden" name="action" value="delete_record">
-                <input type="hidden" name="id" value="<?= (int)$record['id']; ?>">
-                <button type="button" data-modal-close class="rounded-lg border border-slate-200 px-4 py-2 text-sm">Cancel</button>
-                <button type="submit" class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white">Delete</button>
-            </form>
-        </div>
-    </div>
 <?php endforeach; ?>
 
 <?php include __DIR__ . '/../partials/footer.php'; ?>

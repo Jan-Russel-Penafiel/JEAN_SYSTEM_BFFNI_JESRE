@@ -6,6 +6,70 @@ $pageTitle = 'Purchasing Department';
 $activePage = 'purchasing';
 $user = current_user();
 
+if (($_GET['export'] ?? '') === 'purchasing_pdf') {
+    $poRows = $pdo->query('SELECT po.*, p.sku, p.product_name, u.name AS created_by_name FROM purchase_orders po JOIN products p ON p.id = po.product_id JOIN users u ON u.id = po.created_by ORDER BY po.id DESC')->fetchAll();
+    $lowRows = $pdo->query("SELECT sku, product_name, stock_qty, reorder_level FROM products WHERE stock_qty <= reorder_level ORDER BY stock_qty ASC, product_name ASC")->fetchAll();
+
+    header('Content-Type: text/html; charset=UTF-8');
+    echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Purchasing Report</title>';
+    echo '<style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px;color:#222}h1{color:#8b0000;font-size:18px}h2{color:#8b0000;font-size:14px;margin-top:20px}table{width:100%;border-collapse:collapse;margin-top:8px}th{background:#8b0000;color:#fff;padding:6px 8px;text-align:left}td{padding:5px 8px;border-bottom:1px solid #e2e8f0}.meta{color:#64748b;font-size:11px;margin-bottom:16px}</style>';
+    echo '</head><body>';
+    echo '<h1>JZ Sisters Trading OPC &mdash; Purchasing Report</h1>';
+    echo '<p class="meta">Generated: ' . date('F d, Y h:i A') . '</p>';
+
+    echo '<h2>Low Stock Items</h2>';
+    echo '<table><thead><tr><th>SKU</th><th>Product</th><th>Stock Qty</th><th>Reorder Level</th></tr></thead><tbody>';
+    foreach ($lowRows as $r) {
+        echo '<tr><td>' . htmlspecialchars($r['sku']) . '</td><td>' . htmlspecialchars($r['product_name']) . '</td><td>' . (int)$r['stock_qty'] . '</td><td>' . (int)$r['reorder_level'] . '</td></tr>';
+    }
+    if (!$lowRows) echo '<tr><td colspan="4">No low stock items.</td></tr>';
+    echo '</tbody></table>';
+
+    echo '<h2>Purchase Orders</h2>';
+    echo '<table><thead><tr><th>PO Number</th><th>Product</th><th>Qty</th><th>Unit Cost</th><th>Total</th><th>Supplier</th><th>Status</th><th>Created By</th></tr></thead><tbody>';
+    foreach ($poRows as $po) {
+        $total = (int)$po['quantity'] * (float)$po['unit_cost'];
+        echo '<tr><td>' . htmlspecialchars($po['po_number']) . '</td><td>' . htmlspecialchars($po['sku']) . ' - ' . htmlspecialchars($po['product_name']) . '</td><td>' . (int)$po['quantity'] . '</td><td>PHP ' . number_format($po['unit_cost'], 2) . '</td><td>PHP ' . number_format($total, 2) . '</td><td>' . htmlspecialchars($po['supplier_name']) . '</td><td>' . htmlspecialchars($po['status']) . '</td><td>' . htmlspecialchars($po['created_by_name']) . '</td></tr>';
+    }
+    if (!$poRows) echo '<tr><td colspan="8">No purchase orders.</td></tr>';
+    echo '</tbody></table>';
+    echo '<script>window.onload=function(){window.print();}</script>';
+    echo '</body></html>';
+    exit;
+}
+
+if (($_GET['export'] ?? '') === 'purchasing_word') {
+    $poRows = $pdo->query('SELECT po.*, p.sku, p.product_name, u.name AS created_by_name FROM purchase_orders po JOIN products p ON p.id = po.product_id JOIN users u ON u.id = po.created_by ORDER BY po.id DESC')->fetchAll();
+    $lowRows = $pdo->query("SELECT sku, product_name, stock_qty, reorder_level FROM products WHERE stock_qty <= reorder_level ORDER BY stock_qty ASC, product_name ASC")->fetchAll();
+
+    $filename = 'purchasing-report-' . date('Y-m-d') . '.doc';
+    header('Content-Type: application/msword');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+    echo '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="UTF-8"></head><body>';
+    echo '<h1 style="color:#8b0000">JZ Sisters Trading OPC &mdash; Purchasing Report</h1>';
+    echo '<p style="color:#64748b">Generated: ' . date('F d, Y h:i A') . '</p>';
+
+    echo '<h2 style="color:#8b0000">Low Stock Items</h2>';
+    echo '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr style="background:#8b0000;color:#fff"><th>SKU</th><th>Product</th><th>Stock Qty</th><th>Reorder Level</th></tr></thead><tbody>';
+    foreach ($lowRows as $r) {
+        echo '<tr><td>' . htmlspecialchars($r['sku']) . '</td><td>' . htmlspecialchars($r['product_name']) . '</td><td>' . (int)$r['stock_qty'] . '</td><td>' . (int)$r['reorder_level'] . '</td></tr>';
+    }
+    if (!$lowRows) echo '<tr><td colspan="4">No low stock items.</td></tr>';
+    echo '</tbody></table>';
+
+    echo '<h2 style="color:#8b0000">Purchase Orders</h2>';
+    echo '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr style="background:#8b0000;color:#fff"><th>PO Number</th><th>Product</th><th>Qty</th><th>Unit Cost</th><th>Total</th><th>Supplier</th><th>Status</th><th>Created By</th></tr></thead><tbody>';
+    foreach ($poRows as $po) {
+        $total = (int)$po['quantity'] * (float)$po['unit_cost'];
+        echo '<tr><td>' . htmlspecialchars($po['po_number']) . '</td><td>' . htmlspecialchars($po['sku']) . ' - ' . htmlspecialchars($po['product_name']) . '</td><td>' . (int)$po['quantity'] . '</td><td>PHP ' . number_format($po['unit_cost'], 2) . '</td><td>PHP ' . number_format($total, 2) . '</td><td>' . htmlspecialchars($po['supplier_name']) . '</td><td>' . htmlspecialchars($po['status']) . '</td><td>' . htmlspecialchars($po['created_by_name']) . '</td></tr>';
+    }
+    if (!$poRows) echo '<tr><td colspan="8">No purchase orders.</td></tr>';
+    echo '</tbody></table>';
+    echo '</body></html>';
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
@@ -198,7 +262,11 @@ include __DIR__ . '/../partials/header.php';
             <h2 class="text-2xl font-bold text-brand-700">Purchasing Department</h2>
             <p class="text-sm text-slate-500">Receive low stock alerts, create purchase orders, wait for delivery, follow up suppliers, and forward delivered items to inventory.</p>
         </div>
-        <button data-modal-open="create-po-modal" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Create Purchase Order</button>
+        <div class="flex flex-wrap gap-2">
+            <a href="<?= e(app_url('department/purchasing.php')); ?>?export=purchasing_pdf" target="_blank" class="rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800">Print / PDF</a>
+            <a href="<?= e(app_url('department/purchasing.php')); ?>?export=purchasing_word" class="rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-800">Export Word</a>
+            <button data-modal-open="create-po-modal" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Create Purchase Order</button>
+        </div>
     </div>
 
     <section class="rounded-xl border border-brand-100 bg-white p-4 overflow-x-auto">

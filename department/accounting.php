@@ -30,6 +30,152 @@ $accountingRedirect = static function ($monthValue = '') use ($normalizeReportMo
     return app_url('department/accounting.php') . '?report_month=' . urlencode($normalizeReportMonth($monthValue));
 };
 
+if (($_GET['export'] ?? '') === 'accounting_pdf') {
+    $expMonth = $normalizeReportMonth($_GET['report_month'] ?? date('Y-m'));
+    $expLabel = $formatReportMonth($expMonth);
+    $expStart = $expMonth . '-01';
+    $expNext  = date('Y-m-d', strtotime($expStart . ' +1 month'));
+
+    $allSalesTotal  = (float)$pdo->query("SELECT COALESCE(SUM(total_amount),0) FROM sales_orders WHERE payment_status='PAID'")->fetchColumn();
+    $allExpTotal    = (float)$pdo->query('SELECT COALESCE(SUM(amount),0) FROM accounting_expenses')->fetchColumn();
+    $allNet         = $allSalesTotal - $allExpTotal;
+
+    $mSalesTotal = (float)$pdo->prepare("SELECT COALESCE(SUM(total_amount),0) FROM sales_orders WHERE payment_status='PAID' AND created_at >= ? AND created_at < ?")->execute([$expStart . ' 00:00:00', $expNext . ' 00:00:00']) ? 0 : 0;
+    $mSalesStmt  = $pdo->prepare("SELECT COALESCE(SUM(total_amount),0) AS t FROM sales_orders WHERE payment_status='PAID' AND created_at >= :s AND created_at < :n");
+    $mSalesStmt->execute(['s' => $expStart . ' 00:00:00', 'n' => $expNext . ' 00:00:00']);
+    $mSalesTotal = (float)$mSalesStmt->fetchColumn();
+
+    $mExpStmt = $pdo->prepare('SELECT COALESCE(SUM(amount),0) AS t FROM accounting_expenses WHERE expense_date >= :s AND expense_date < :n');
+    $mExpStmt->execute(['s' => $expStart, 'n' => $expNext]);
+    $mExpTotal = (float)$mExpStmt->fetchColumn();
+    $mNet = $mSalesTotal - $mExpTotal;
+
+    $salesRows = $pdo->prepare("SELECT order_no, total_amount, created_at FROM sales_orders WHERE payment_status='PAID' AND created_at >= :s AND created_at < :n ORDER BY created_at DESC LIMIT 50");
+    $salesRows->execute(['s' => $expStart . ' 00:00:00', 'n' => $expNext . ' 00:00:00']);
+    $salesRows = $salesRows->fetchAll();
+
+    $expRows = $pdo->prepare('SELECT expense_date, category, description, amount FROM accounting_expenses WHERE expense_date >= :s AND expense_date < :n ORDER BY expense_date DESC');
+    $expRows->execute(['s' => $expStart, 'n' => $expNext]);
+    $expRows = $expRows->fetchAll();
+
+    header('Content-Type: text/html; charset=UTF-8');
+    echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Accounting Report</title>';
+    echo '<style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px;color:#222}h1{color:#8b0000;font-size:18px}h2{color:#8b0000;font-size:14px;margin-top:20px}table{width:100%;border-collapse:collapse;margin-top:8px}th{background:#8b0000;color:#fff;padding:6px 8px;text-align:left}td{padding:5px 8px;border-bottom:1px solid #e2e8f0}.meta{color:#64748b;font-size:11px;margin-bottom:16px}.is-box{border:2px solid #8b0000;padding:16px;margin:12px 0;max-width:500px}.is-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e2e8f0}.is-total{display:flex;justify-content:space-between;padding:6px 0;font-weight:bold;font-size:13px}.profit{color:#16a34a}.loss{color:#dc2626}</style>';
+    echo '</head><body>';
+    echo '<h1>JZ Sisters Trading OPC &mdash; Accounting Report</h1>';
+    echo '<p class="meta">Report Period: ' . htmlspecialchars($expLabel) . ' &nbsp;|&nbsp; Generated: ' . date('F d, Y h:i A') . '</p>';
+
+    echo '<h2>Income Statement &mdash; ' . htmlspecialchars($expLabel) . '</h2>';
+    echo '<div class="is-box">';
+    echo '<div class="is-row"><span>Total Revenue (Sales)</span><span>PHP ' . number_format($mSalesTotal, 2) . '</span></div>';
+    echo '<div class="is-row"><span>Total Expenses</span><span>PHP ' . number_format($mExpTotal, 2) . '</span></div>';
+    $netClass = $mNet >= 0 ? 'profit' : 'loss';
+    $netLabel = $mNet >= 0 ? 'Net Profit' : 'Net Loss';
+    echo '<div class="is-total ' . $netClass . '"><span>' . $netLabel . '</span><span>PHP ' . number_format(abs($mNet), 2) . '</span></div>';
+    echo '</div>';
+
+    echo '<h2>All-Time Summary</h2>';
+    echo '<div class="is-box">';
+    echo '<div class="is-row"><span>All-Time Revenue</span><span>PHP ' . number_format($allSalesTotal, 2) . '</span></div>';
+    echo '<div class="is-row"><span>All-Time Expenses</span><span>PHP ' . number_format($allExpTotal, 2) . '</span></div>';
+    $allNetClass = $allNet >= 0 ? 'profit' : 'loss';
+    $allNetLabel = $allNet >= 0 ? 'Net Profit' : 'Net Loss';
+    echo '<div class="is-total ' . $allNetClass . '"><span>' . $allNetLabel . '</span><span>PHP ' . number_format(abs($allNet), 2) . '</span></div>';
+    echo '</div>';
+
+    echo '<h2>Paid Sales &mdash; ' . htmlspecialchars($expLabel) . '</h2>';
+    echo '<table><thead><tr><th>Order #</th><th>Amount</th><th>Date</th></tr></thead><tbody>';
+    foreach ($salesRows as $s) {
+        echo '<tr><td>' . htmlspecialchars($s['order_no']) . '</td><td>PHP ' . number_format($s['total_amount'], 2) . '</td><td>' . htmlspecialchars($s['created_at']) . '</td></tr>';
+    }
+    if (!$salesRows) echo '<tr><td colspan="3">No paid sales for this period.</td></tr>';
+    echo '</tbody></table>';
+
+    echo '<h2>Expense Records &mdash; ' . htmlspecialchars($expLabel) . '</h2>';
+    echo '<table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th></tr></thead><tbody>';
+    foreach ($expRows as $ex) {
+        echo '<tr><td>' . htmlspecialchars($ex['expense_date']) . '</td><td>' . htmlspecialchars($ex['category']) . '</td><td>' . htmlspecialchars($ex['description']) . '</td><td>PHP ' . number_format($ex['amount'], 2) . '</td></tr>';
+    }
+    if (!$expRows) echo '<tr><td colspan="4">No expenses for this period.</td></tr>';
+    echo '</tbody></table>';
+
+    echo '<script>window.onload=function(){window.print();}</script>';
+    echo '</body></html>';
+    exit;
+}
+
+if (($_GET['export'] ?? '') === 'accounting_word') {
+    $expMonth = $normalizeReportMonth($_GET['report_month'] ?? date('Y-m'));
+    $expLabel = $formatReportMonth($expMonth);
+    $expStart = $expMonth . '-01';
+    $expNext  = date('Y-m-d', strtotime($expStart . ' +1 month'));
+
+    $allSalesTotal = (float)$pdo->query("SELECT COALESCE(SUM(total_amount),0) FROM sales_orders WHERE payment_status='PAID'")->fetchColumn();
+    $allExpTotal   = (float)$pdo->query('SELECT COALESCE(SUM(amount),0) FROM accounting_expenses')->fetchColumn();
+    $allNet        = $allSalesTotal - $allExpTotal;
+
+    $mSalesStmt = $pdo->prepare("SELECT COALESCE(SUM(total_amount),0) FROM sales_orders WHERE payment_status='PAID' AND created_at >= :s AND created_at < :n");
+    $mSalesStmt->execute(['s' => $expStart . ' 00:00:00', 'n' => $expNext . ' 00:00:00']);
+    $mSalesTotal = (float)$mSalesStmt->fetchColumn();
+
+    $mExpStmt = $pdo->prepare('SELECT COALESCE(SUM(amount),0) FROM accounting_expenses WHERE expense_date >= :s AND expense_date < :n');
+    $mExpStmt->execute(['s' => $expStart, 'n' => $expNext]);
+    $mExpTotal = (float)$mExpStmt->fetchColumn();
+    $mNet = $mSalesTotal - $mExpTotal;
+
+    $salesRows = $pdo->prepare("SELECT order_no, total_amount, created_at FROM sales_orders WHERE payment_status='PAID' AND created_at >= :s AND created_at < :n ORDER BY created_at DESC LIMIT 50");
+    $salesRows->execute(['s' => $expStart . ' 00:00:00', 'n' => $expNext . ' 00:00:00']);
+    $salesRows = $salesRows->fetchAll();
+
+    $expRows = $pdo->prepare('SELECT expense_date, category, description, amount FROM accounting_expenses WHERE expense_date >= :s AND expense_date < :n ORDER BY expense_date DESC');
+    $expRows->execute(['s' => $expStart, 'n' => $expNext]);
+    $expRows = $expRows->fetchAll();
+
+    $filename = 'accounting-report-' . $expMonth . '.doc';
+    header('Content-Type: application/msword');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+    echo '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="UTF-8"></head><body>';
+    echo '<h1 style="color:#8b0000">JZ Sisters Trading OPC &mdash; Accounting Report</h1>';
+    echo '<p style="color:#64748b">Report Period: ' . htmlspecialchars($expLabel) . ' &nbsp;|&nbsp; Generated: ' . date('F d, Y h:i A') . '</p>';
+
+    echo '<h2 style="color:#8b0000">Income Statement &mdash; ' . htmlspecialchars($expLabel) . '</h2>';
+    echo '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:400px">';
+    echo '<tr><td>Total Revenue (Sales)</td><td><b>PHP ' . number_format($mSalesTotal, 2) . '</b></td></tr>';
+    echo '<tr><td>Total Expenses</td><td><b>PHP ' . number_format($mExpTotal, 2) . '</b></td></tr>';
+    $netColor = $mNet >= 0 ? '#16a34a' : '#dc2626';
+    $netLabel = $mNet >= 0 ? 'Net Profit' : 'Net Loss';
+    echo '<tr><td><b>' . $netLabel . '</b></td><td><b style="color:' . $netColor . '">PHP ' . number_format(abs($mNet), 2) . '</b></td></tr>';
+    echo '</table>';
+
+    echo '<h2 style="color:#8b0000">All-Time Summary</h2>';
+    echo '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:400px">';
+    echo '<tr><td>All-Time Revenue</td><td><b>PHP ' . number_format($allSalesTotal, 2) . '</b></td></tr>';
+    echo '<tr><td>All-Time Expenses</td><td><b>PHP ' . number_format($allExpTotal, 2) . '</b></td></tr>';
+    $allNetColor = $allNet >= 0 ? '#16a34a' : '#dc2626';
+    $allNetLabel = $allNet >= 0 ? 'Net Profit' : 'Net Loss';
+    echo '<tr><td><b>' . $allNetLabel . '</b></td><td><b style="color:' . $allNetColor . '">PHP ' . number_format(abs($allNet), 2) . '</b></td></tr>';
+    echo '</table>';
+
+    echo '<h2 style="color:#8b0000">Paid Sales &mdash; ' . htmlspecialchars($expLabel) . '</h2>';
+    echo '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr style="background:#8b0000;color:#fff"><th>Order #</th><th>Amount</th><th>Date</th></tr></thead><tbody>';
+    foreach ($salesRows as $s) {
+        echo '<tr><td>' . htmlspecialchars($s['order_no']) . '</td><td>PHP ' . number_format($s['total_amount'], 2) . '</td><td>' . htmlspecialchars($s['created_at']) . '</td></tr>';
+    }
+    if (!$salesRows) echo '<tr><td colspan="3">No paid sales for this period.</td></tr>';
+    echo '</tbody></table>';
+
+    echo '<h2 style="color:#8b0000">Expense Records &mdash; ' . htmlspecialchars($expLabel) . '</h2>';
+    echo '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr style="background:#8b0000;color:#fff"><th>Date</th><th>Category</th><th>Description</th><th>Amount</th></tr></thead><tbody>';
+    foreach ($expRows as $ex) {
+        echo '<tr><td>' . htmlspecialchars($ex['expense_date']) . '</td><td>' . htmlspecialchars($ex['category']) . '</td><td>' . htmlspecialchars($ex['description']) . '</td><td>PHP ' . number_format($ex['amount'], 2) . '</td></tr>';
+    }
+    if (!$expRows) echo '<tr><td colspan="4">No expenses for this period.</td></tr>';
+    echo '</tbody></table>';
+    echo '</body></html>';
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $returnReportMonth = $_POST['return_report_month'] ?? '';
@@ -210,7 +356,11 @@ include __DIR__ . '/../partials/header.php';
             <h2 class="text-2xl font-bold text-brand-700">Accounting Department</h2>
             <p class="text-sm text-slate-500">Sales analytics, sales reports, stored financial records, and monthly history from past months.</p>
         </div>
-        <button data-modal-open="create-expense-modal" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Create Expense</button>
+        <div class="flex flex-wrap gap-2">
+            <a href="<?= e(app_url('department/accounting.php')); ?>?export=accounting_pdf&report_month=<?= e($selectedReportMonth); ?>" target="_blank" class="rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800">Print / PDF</a>
+            <a href="<?= e(app_url('department/accounting.php')); ?>?export=accounting_word&report_month=<?= e($selectedReportMonth); ?>" class="rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-800">Export Word</a>
+            <button data-modal-open="create-expense-modal" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Create Expense</button>
+        </div>
     </div>
 
     <section class="rounded-xl border border-brand-100 bg-white p-5">
@@ -282,6 +432,37 @@ include __DIR__ . '/../partials/header.php';
             <p class="text-xs text-slate-500"><?= e($selectedReportLabel); ?> Net Income</p>
             <p class="mt-1 text-2xl font-bold <?= $selectedReport['net_income'] >= 0 ? 'text-emerald-600' : 'text-rose-600'; ?>"><?= e(format_currency($selectedReport['net_income'])); ?></p>
             <p class="mt-2 text-xs text-slate-500">Monthly income statement for the selected report period.</p>
+        </div>
+    </section>
+
+    <section class="rounded-xl border border-brand-100 bg-white p-5">
+        <h3 class="text-base font-semibold text-brand-700 mb-1">Income Statement &mdash; <?= e($selectedReportLabel); ?></h3>
+        <p class="text-xs text-slate-500 mb-4">Profit / Loss = Revenue &minus; Expenses</p>
+        <div class="grid gap-3 sm:grid-cols-3">
+            <div class="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
+                <p class="text-xs text-emerald-700 font-semibold uppercase tracking-wide">Total Revenue</p>
+                <p class="mt-1 text-2xl font-bold text-emerald-600"><?= e(format_currency($selectedReport['total_sales'])); ?></p>
+                <p class="mt-1 text-xs text-slate-500">Paid sales for <?= e($selectedReportLabel); ?></p>
+            </div>
+            <div class="rounded-xl border border-amber-100 bg-amber-50 p-4">
+                <p class="text-xs text-amber-700 font-semibold uppercase tracking-wide">Total Expenses</p>
+                <p class="mt-1 text-2xl font-bold text-amber-600"><?= e(format_currency($selectedReport['total_expenses'])); ?></p>
+                <p class="mt-1 text-xs text-slate-500">Recorded expenses for <?= e($selectedReportLabel); ?></p>
+            </div>
+            <div class="rounded-xl border p-4 <?= $selectedReport['net_income'] >= 0 ? 'border-emerald-100 bg-emerald-50' : 'border-rose-100 bg-rose-50'; ?>">
+                <p class="text-xs font-semibold uppercase tracking-wide <?= $selectedReport['net_income'] >= 0 ? 'text-emerald-700' : 'text-rose-700'; ?>"><?= $selectedReport['net_income'] >= 0 ? 'Net Profit' : 'Net Loss'; ?></p>
+                <p class="mt-1 text-2xl font-bold <?= $selectedReport['net_income'] >= 0 ? 'text-emerald-600' : 'text-rose-600'; ?>"><?= e(format_currency(abs($selectedReport['net_income']))); ?></p>
+                <p class="mt-1 text-xs text-slate-500">Revenue &minus; Expenses for <?= e($selectedReportLabel); ?></p>
+            </div>
+        </div>
+        <div class="mt-4 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            <span class="font-semibold">Formula:</span>
+            PHP&nbsp;<?= e(number_format($selectedReport['total_sales'], 2)); ?> &minus;
+            PHP&nbsp;<?= e(number_format($selectedReport['total_expenses'], 2)); ?> =
+            <span class="font-bold <?= $selectedReport['net_income'] >= 0 ? 'text-emerald-600' : 'text-rose-600'; ?>">
+                PHP&nbsp;<?= e(number_format($selectedReport['net_income'], 2)); ?>
+                (<?= $selectedReport['net_income'] >= 0 ? 'Profit' : 'Loss'; ?>)
+            </span>
         </div>
     </section>
 

@@ -12,6 +12,10 @@ const mappings = [
     source: 'node_modules/jspdf/dist/jspdf.umd.min.js',
     target: 'assets/vendor/jspdf/jspdf.umd.min.js',
   },
+  {
+    source: 'node_modules/qrcodejs2/qrcode.min.js',
+    target: 'assets/vendor/qrcodejs/qrcode.min.js',
+  },
 ];
 
 function syncOneFile(sourceRelativePath, targetRelativePath) {
