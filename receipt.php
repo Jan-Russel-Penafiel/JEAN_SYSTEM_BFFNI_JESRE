@@ -12,11 +12,19 @@ if ($paymentId <= 0) {
     exit;
 }
 
-$stmt = $pdo->prepare('SELECT p.*, so.id AS order_id, so.order_no, so.cashier_id, so.total_amount, so.created_at AS order_date, soi.quantity, soi.unit_price, soi.subtotal, pr.sku, pr.product_name, u.name AS cashier_name FROM payments p JOIN sales_orders so ON so.id = p.sales_order_id JOIN sales_order_items soi ON soi.sales_order_id = so.id JOIN products pr ON pr.id = soi.product_id JOIN users u ON u.id = so.cashier_id WHERE p.id = :payment_id LIMIT 1');
+$stmt = $pdo->prepare('SELECT p.*, so.id AS order_id, so.order_no, so.cashier_id, so.total_amount, so.created_at AS order_date, u.name AS cashier_name FROM payments p JOIN sales_orders so ON so.id = p.sales_order_id JOIN users u ON u.id = so.cashier_id WHERE p.id = :payment_id LIMIT 1');
 $stmt->execute(['payment_id' => $paymentId]);
 $receipt = $stmt->fetch();
 
 if (!$receipt) {
+    http_response_code(404);
+    echo 'Receipt not found.';
+    exit;
+}
+
+$receiptItems = fetch_sales_order_item_details($pdo, (int)$receipt['order_id']);
+
+if (!$receiptItems) {
     http_response_code(404);
     echo 'Receipt not found.';
     exit;
@@ -102,12 +110,14 @@ $backPath = $role === 'ACCOUNTING'
                 </tr>
                 </thead>
                 <tbody>
-                <tr class="border-t border-brand-100">
-                    <td class="px-3 py-3"><?= e($receipt['sku']); ?> - <?= e($receipt['product_name']); ?></td>
-                    <td class="px-3 py-3 text-right"><?= (int)$receipt['quantity']; ?></td>
-                    <td class="px-3 py-3 text-right"><?= e(format_currency($receipt['unit_price'])); ?></td>
-                    <td class="px-3 py-3 text-right font-semibold"><?= e(format_currency($receipt['subtotal'])); ?></td>
-                </tr>
+                <?php foreach ($receiptItems as $item): ?>
+                    <tr class="border-t border-brand-100">
+                        <td class="px-3 py-3"><?= e($item['sku']); ?> - <?= e($item['product_name']); ?></td>
+                        <td class="px-3 py-3 text-right"><?= (int)$item['quantity']; ?></td>
+                        <td class="px-3 py-3 text-right"><?= e(format_currency($item['unit_price'])); ?></td>
+                        <td class="px-3 py-3 text-right font-semibold"><?= e(format_currency($item['subtotal'])); ?></td>
+                    </tr>
+                <?php endforeach; ?>
                 </tbody>
             </table>
         </div>

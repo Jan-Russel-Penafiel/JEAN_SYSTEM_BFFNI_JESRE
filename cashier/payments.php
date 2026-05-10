@@ -14,27 +14,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $amountPaid = (float)($_POST['amount_paid'] ?? 0);
         $paymentMethod = trim($_POST['payment_method'] ?? 'Cash');
 
-        $orderStmt = $pdo->prepare('SELECT so.*, soi.quantity, soi.product_id, p.stock_qty, p.reorder_level, p.product_name, p.sku FROM sales_orders so JOIN sales_order_items soi ON soi.sales_order_id = so.id JOIN products p ON p.id = soi.product_id WHERE so.id = :order_id AND so.cashier_id = :cashier_id LIMIT 1');
+        $orderStmt = $pdo->prepare('SELECT * FROM sales_orders WHERE id = :order_id AND cashier_id = :cashier_id LIMIT 1');
         $orderStmt->execute([
             'order_id' => $orderId,
             'cashier_id' => $user['id'],
         ]);
         $order = $orderStmt->fetch();
+        $orderItems = $order ? fetch_sales_order_item_details($pdo, $orderId) : [];
+        $insufficientStockItem = null;
+
+        foreach ($orderItems as $item) {
+            if ((int)$item['quantity'] > (int)$item['stock_qty']) {
+                $insufficientStockItem = $item;
+                break;
+            }
+        }
 
         if (!$order) {
             flash_set('error', 'Order not found for payment.');
+        } elseif (!$orderItems) {
+            flash_set('error', 'Order has no products to pay.');
         } elseif ($order['payment_status'] === 'PAID') {
             flash_set('error', 'Order is already paid.');
         } elseif (($order['flow_status'] ?? '') !== 'ORDER_COMPLETE') {
             flash_set('error', 'Only order-complete sales orders can be paid.');
         } elseif ($amountPaid < (float)$order['total_amount']) {
             flash_set('error', 'Amount paid is less than total amount due.');
-        } elseif ((int)$order['quantity'] > (int)$order['stock_qty']) {
-            flash_set('error', 'Not enough stock available at payment time.');
+        } elseif ($insufficientStockItem) {
+            flash_set('error', 'Not enough stock available for ' . $insufficientStockItem['product_name'] . '.');
         } else {
-            $qtyBefore = (int)$order['stock_qty'];
-            $qtyChange = -((int)$order['quantity']);
-            $qtyAfter = $qtyBefore + $qtyChange;
             $receiptNo = 'OR-' . date('YmdHis') . '-' . random_int(100, 999);
 
             $pdo->beginTransaction();
@@ -53,30 +61,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $updateOrder->execute(['id' => $orderId]);
 
                 $updateProduct = $pdo->prepare('UPDATE products SET stock_qty = :stock_qty WHERE id = :id');
-                $updateProduct->execute([
-                    'stock_qty' => $qtyAfter,
-                    'id' => $order['product_id'],
-                ]);
-
                 $invStmt = $pdo->prepare('INSERT INTO inventory_records (product_id, department, change_type, availability_status, item_check_status, qty_before, qty_change, qty_after, remarks, created_by) VALUES (:product_id, :department, :change_type, :availability_status, :item_check_status, :qty_before, :qty_change, :qty_after, :remarks, :created_by)');
-                $invStmt->execute([
-                    'product_id' => $order['product_id'],
-                    'department' => 'CASHIER',
-                    'change_type' => 'SALE',
-                    'availability_status' => $qtyAfter > 0 ? 'YES' : 'NO',
-                    'item_check_status' => null,
-                    'qty_before' => $qtyBefore,
-                    'qty_change' => $qtyChange,
-                    'qty_after' => $qtyAfter,
-                    'remarks' => 'Payment posted for order ' . $order['order_no'],
-                    'created_by' => $user['id'],
-                ]);
+                $notify = $pdo->prepare('INSERT INTO department_notifications (target_department, message, status) VALUES (:target_department, :message, :status)');
 
-                if ($qtyAfter <= (int)$order['reorder_level']) {
-                    $notify = $pdo->prepare('INSERT INTO department_notifications (target_department, message, status) VALUES (:target_department, :message, :status)');
+                foreach ($orderItems as $item) {
+                    $qtyBefore = (int)$item['stock_qty'];
+                    $qtyChange = -((int)$item['quantity']);
+                    $qtyAfter = $qtyBefore + $qtyChange;
+
+                    $updateProduct->execute([
+                        'stock_qty' => $qtyAfter,
+                        'id' => $item['product_id'],
+                    ]);
+
+                    $invStmt->execute([
+                        'product_id' => $item['product_id'],
+                        'department' => 'CASHIER',
+                        'change_type' => 'SALE',
+                        'availability_status' => $qtyAfter > 0 ? 'YES' : 'NO',
+                        'item_check_status' => null,
+                        'qty_before' => $qtyBefore,
+                        'qty_change' => $qtyChange,
+                        'qty_after' => $qtyAfter,
+                        'remarks' => 'Payment posted for order ' . $order['order_no'],
+                        'created_by' => $user['id'],
+                    ]);
+
+                    if ($qtyAfter > (int)$item['reorder_level']) {
+                        continue;
+                    }
+
                     $notify->execute([
                         'target_department' => 'PURCHASING',
-                        'message' => 'Low stock after cashier sale for ' . $order['product_name'] . ' (SKU ' . $order['sku'] . ').',
+                        'message' => 'Low stock after cashier sale for ' . $item['product_name'] . ' (SKU ' . $item['sku'] . ').',
                         'status' => 'PENDING',
                     ]);
                 }
@@ -124,17 +141,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'delete_payment') {
         $paymentId = (int)($_POST['payment_id'] ?? 0);
 
-        $stmt = $pdo->prepare('SELECT p.*, so.id AS order_id, so.order_no, so.cashier_id, soi.quantity, soi.product_id, prod.stock_qty, prod.product_name, prod.sku FROM payments p JOIN sales_orders so ON so.id = p.sales_order_id JOIN sales_order_items soi ON soi.sales_order_id = so.id JOIN products prod ON prod.id = soi.product_id WHERE p.id = :payment_id LIMIT 1');
+        $stmt = $pdo->prepare('SELECT p.*, so.id AS order_id, so.order_no, so.cashier_id FROM payments p JOIN sales_orders so ON so.id = p.sales_order_id WHERE p.id = :payment_id LIMIT 1');
         $stmt->execute(['payment_id' => $paymentId]);
         $payment = $stmt->fetch();
+        $paymentItems = $payment ? fetch_sales_order_item_details($pdo, (int)$payment['order_id']) : [];
 
         if (!$payment || (int)$payment['cashier_id'] !== (int)$user['id']) {
             flash_set('error', 'Payment not found.');
         } else {
-            $qtyBefore = (int)$payment['stock_qty'];
-            $qtyChange = (int)$payment['quantity'];
-            $qtyAfter = $qtyBefore + $qtyChange;
-
             $pdo->beginTransaction();
             try {
                 $delete = $pdo->prepare('DELETE FROM payments WHERE id = :id');
@@ -144,24 +158,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $updateOrder->execute(['id' => $payment['order_id']]);
 
                 $updateProduct = $pdo->prepare('UPDATE products SET stock_qty = :stock_qty WHERE id = :id');
-                $updateProduct->execute([
-                    'stock_qty' => $qtyAfter,
-                    'id' => $payment['product_id'],
-                ]);
-
                 $invStmt = $pdo->prepare('INSERT INTO inventory_records (product_id, department, change_type, availability_status, item_check_status, qty_before, qty_change, qty_after, remarks, created_by) VALUES (:product_id, :department, :change_type, :availability_status, :item_check_status, :qty_before, :qty_change, :qty_after, :remarks, :created_by)');
-                $invStmt->execute([
-                    'product_id' => $payment['product_id'],
-                    'department' => 'CASHIER',
-                    'change_type' => 'RETURN',
-                    'availability_status' => $qtyAfter > 0 ? 'YES' : 'NO',
-                    'item_check_status' => null,
-                    'qty_before' => $qtyBefore,
-                    'qty_change' => $qtyChange,
-                    'qty_after' => $qtyAfter,
-                    'remarks' => 'Payment rollback for order ' . $payment['order_no'],
-                    'created_by' => $user['id'],
-                ]);
+
+                foreach ($paymentItems as $item) {
+                    $qtyBefore = (int)$item['stock_qty'];
+                    $qtyChange = (int)$item['quantity'];
+                    $qtyAfter = $qtyBefore + $qtyChange;
+
+                    $updateProduct->execute([
+                        'stock_qty' => $qtyAfter,
+                        'id' => $item['product_id'],
+                    ]);
+
+                    $invStmt->execute([
+                        'product_id' => $item['product_id'],
+                        'department' => 'CASHIER',
+                        'change_type' => 'RETURN',
+                        'availability_status' => $qtyAfter > 0 ? 'YES' : 'NO',
+                        'item_check_status' => null,
+                        'qty_before' => $qtyBefore,
+                        'qty_change' => $qtyChange,
+                        'qty_after' => $qtyAfter,
+                        'remarks' => 'Payment rollback for order ' . $payment['order_no'],
+                        'created_by' => $user['id'],
+                    ]);
+                }
 
                 $pdo->commit();
                 flash_set('success', 'Payment deleted and stock reverted.');
@@ -180,12 +201,12 @@ $pendingCompletionStmt = $pdo->prepare("SELECT COUNT(*) FROM sales_orders WHERE 
 $pendingCompletionStmt->execute(['cashier_id' => $user['id']]);
 $pendingCompletionCount = (int)$pendingCompletionStmt->fetchColumn();
 
-$unpaidOrdersStmt = $pdo->prepare("SELECT so.*, soi.quantity, soi.product_id, p.sku, p.product_name FROM sales_orders so JOIN sales_order_items soi ON soi.sales_order_id = so.id JOIN products p ON p.id = soi.product_id WHERE so.cashier_id = :cashier_id AND so.payment_status = :payment_status AND so.flow_status = 'ORDER_COMPLETE' ORDER BY so.id DESC");
+$unpaidOrdersStmt = $pdo->prepare("SELECT so.*, soi.id AS item_id, soi.product_id, soi.quantity, soi.unit_price, soi.subtotal, p.sku, p.product_name, p.stock_qty FROM sales_orders so JOIN sales_order_items soi ON soi.sales_order_id = so.id JOIN products p ON p.id = soi.product_id WHERE so.cashier_id = :cashier_id AND so.payment_status = :payment_status AND so.flow_status = 'ORDER_COMPLETE' ORDER BY so.id DESC, soi.id ASC");
 $unpaidOrdersStmt->execute([
     'cashier_id' => $user['id'],
     'payment_status' => 'UNPAID',
 ]);
-$unpaidOrders = $unpaidOrdersStmt->fetchAll();
+$unpaidOrders = group_sales_order_rows($unpaidOrdersStmt->fetchAll());
 
 $paymentsStmt = $pdo->prepare('SELECT p.*, so.order_no, so.total_amount, so.cashier_id FROM payments p JOIN sales_orders so ON so.id = p.sales_order_id WHERE so.cashier_id = :cashier_id ORDER BY p.id DESC');
 $paymentsStmt->execute(['cashier_id' => $user['id']]);
@@ -225,10 +246,11 @@ include __DIR__ . '/../partials/header.php';
                 <tr><td class="py-3 text-slate-500" colspan="5">No unpaid orders found.</td></tr>
             <?php else: ?>
                 <?php foreach ($unpaidOrders as $order): ?>
+                    <?php $orderItems = $order['items']; ?>
                     <tr class="border-b border-slate-50">
                         <td class="py-2 pr-3 font-medium text-slate-700"><?= e($order['order_no']); ?></td>
-                        <td class="py-2 pr-3"><?= e($order['sku']); ?> - <?= e($order['product_name']); ?></td>
-                        <td class="py-2 pr-3"><?= (int)$order['quantity']; ?></td>
+                        <td class="py-2 pr-3"><?= e(summarize_sales_order_items($orderItems)); ?></td>
+                        <td class="py-2 pr-3"><?= (int)array_sum(array_column($orderItems, 'quantity')); ?></td>
                         <td class="py-2 pr-3"><?= e(format_currency($order['total_amount'])); ?></td>
                         <td class="py-2">
                             <button data-modal-open="pay-order-<?= (int)$order['id']; ?>" class="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Pay Now</button>
@@ -318,9 +340,11 @@ include __DIR__ . '/../partials/header.php';
 </div>
 
 <?php foreach ($unpaidOrders as $order): ?>
+    <?php $orderItems = $order['items']; ?>
     <div id="pay-order-<?= (int)$order['id']; ?>" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
         <div class="w-full max-w-xl rounded-xl bg-white p-6">
             <h3 class="text-lg font-semibold text-emerald-700">Payment for <?= e($order['order_no']); ?></h3>
+            <p class="mt-1 text-sm text-slate-500"><?= e(summarize_sales_order_items($orderItems)); ?></p>
             <form method="post" class="mt-4 space-y-3">
                 <input type="hidden" name="action" value="create_payment">
                 <input type="hidden" name="order_id" value="<?= (int)$order['id']; ?>">

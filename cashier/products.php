@@ -19,39 +19,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$product || $quantity <= 0) {
             flash_set('error', 'Please choose a valid product and quantity.');
-        } elseif ($quantity > (int)$product['stock_qty']) {
+        } elseif ($quantity + get_cashier_open_order_product_quantity($pdo, (int)$user['id'], $productId) > (int)$product['stock_qty']) {
             flash_set('error', 'Requested quantity exceeds available stock.');
         } else {
-            $orderNo = 'SO-' . date('YmdHis') . '-' . random_int(100, 999);
-            $totalAmount = $quantity * (float)$product['price'];
-
             $pdo->beginTransaction();
             try {
-                $orderStmt = $pdo->prepare('INSERT INTO sales_orders (order_no, cashier_id, total_amount, payment_status, flow_status) VALUES (:order_no, :cashier_id, :total_amount, :payment_status, :flow_status)');
-                $orderStmt->execute([
-                    'order_no' => $orderNo,
-                    'cashier_id' => $user['id'],
-                    'total_amount' => $totalAmount,
-                    'payment_status' => 'UNPAID',
-                    'flow_status' => 'ORDER_CONFIRMED',
-                ]);
-
-                $salesOrderId = (int)$pdo->lastInsertId();
-
-                $itemStmt = $pdo->prepare('INSERT INTO sales_order_items (sales_order_id, product_id, quantity, unit_price, subtotal) VALUES (:sales_order_id, :product_id, :quantity, :unit_price, :subtotal)');
-                $itemStmt->execute([
-                    'sales_order_id' => $salesOrderId,
-                    'product_id' => $productId,
-                    'quantity' => $quantity,
-                    'unit_price' => $product['price'],
-                    'subtotal' => $totalAmount,
-                ]);
-
+                add_product_to_cashier_open_order($pdo, (int)$user['id'], $product, $quantity);
                 $pdo->commit();
-                flash_set('success', 'Order confirmed and sales order generated. Complete the order in Sales Orders before payment.');
+                flash_set('success', 'Product added to the current sales order. Complete the order before payment.');
             } catch (Exception $e) {
                 $pdo->rollBack();
                 flash_set('error', 'Failed to create sales order.');
+            }
+        }
+
+        header('Location: ' . app_url('cashier/orders.php'));
+        exit;
+    }
+
+    if ($action === 'bulk_create_order') {
+        $submittedQuantities = $_POST['bulk_quantities'] ?? [];
+        $bulkProducts = [];
+        $errorMessage = '';
+
+        if (!is_array($submittedQuantities)) {
+            $submittedQuantities = [];
+        }
+
+        $productStmt = $pdo->prepare('SELECT * FROM products WHERE id = :id LIMIT 1');
+
+        foreach ($submittedQuantities as $rawProductId => $rawQuantity) {
+            $productId = (int)$rawProductId;
+            $quantity = (int)$rawQuantity;
+
+            if ($productId <= 0 || $quantity <= 0) {
+                continue;
+            }
+
+            $productStmt->execute(['id' => $productId]);
+            $product = $productStmt->fetch();
+
+            if (!$product) {
+                $errorMessage = 'One selected product no longer exists.';
+                break;
+            }
+
+            if ($quantity + get_cashier_open_order_product_quantity($pdo, (int)$user['id'], $productId) > (int)$product['stock_qty']) {
+                $errorMessage = 'Requested quantity exceeds available stock for ' . $product['product_name'] . '.';
+                break;
+            }
+
+            $product['quantity'] = $quantity;
+            $bulkProducts[] = $product;
+        }
+
+        if ($errorMessage !== '') {
+            flash_set('error', $errorMessage);
+        } elseif (!$bulkProducts) {
+            flash_set('error', 'Select at least one product quantity for bulk order.');
+        } else {
+            $pdo->beginTransaction();
+            try {
+                add_products_to_cashier_open_order($pdo, (int)$user['id'], $bulkProducts);
+                $pdo->commit();
+                flash_set('success', 'Bulk order added to one sales order. Complete the order before payment.');
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                flash_set('error', 'Failed to create bulk order.');
             }
         }
 
@@ -65,9 +99,12 @@ $products = $pdo->query('SELECT * FROM products ORDER BY product_name ASC')->fet
 include __DIR__ . '/../partials/header.php';
 ?>
 <div class="space-y-6">
-    <div>
-        <h2 class="text-2xl font-bold text-brand-700">Browse Product</h2>
-        <p class="text-sm text-slate-500">Choose product, confirm the order, generate the sales order, then send it to order completion.</p>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-bold text-brand-700">Browse Product</h2>
+            <p class="text-sm text-slate-500">Choose products, confirm the order, generate the sales order, then send it to order completion.</p>
+        </div>
+        <button data-modal-open="bulk-order-modal" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Bulk Order</button>
     </div>
 
     <section class="rounded-xl border border-brand-100 bg-white p-4 overflow-x-auto">
@@ -107,6 +144,45 @@ include __DIR__ . '/../partials/header.php';
             </tbody>
         </table>
     </section>
+</div>
+
+<div id="bulk-order-modal" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
+    <div class="w-full max-w-3xl rounded-xl bg-white p-6">
+        <h3 class="text-lg font-semibold text-brand-700">Bulk Order</h3>
+        <form method="post" class="mt-4 space-y-4">
+            <input type="hidden" name="action" value="bulk_create_order">
+            <div class="max-h-[70vh] overflow-y-auto rounded-xl border border-brand-100">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-brand-50 text-left text-slate-600">
+                    <tr>
+                        <th class="px-3 py-2">Product</th>
+                        <th class="px-3 py-2 text-right">Price</th>
+                        <th class="px-3 py-2 text-right">Stock</th>
+                        <th class="px-3 py-2 text-right">Qty</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($products as $product): ?>
+                        <tr class="border-t border-brand-100">
+                            <td class="px-3 py-3">
+                                <p class="font-semibold text-slate-700"><?= e($product['sku']); ?> - <?= e($product['product_name']); ?></p>
+                            </td>
+                            <td class="px-3 py-3 text-right"><?= e(format_currency($product['price'])); ?></td>
+                            <td class="px-3 py-3 text-right"><?= (int)$product['stock_qty']; ?></td>
+                            <td class="px-3 py-3 text-right">
+                                <input type="number" min="0" max="<?= (int)$product['stock_qty']; ?>" name="bulk_quantities[<?= (int)$product['id']; ?>]" class="ml-auto w-24 rounded-lg border border-slate-200 px-3 py-2 text-right" value="0">
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" data-modal-close class="rounded-lg border border-slate-200 px-4 py-2 text-sm">Cancel</button>
+                <button type="submit" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white">Create Bulk Order</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <?php foreach ($products as $product): ?>

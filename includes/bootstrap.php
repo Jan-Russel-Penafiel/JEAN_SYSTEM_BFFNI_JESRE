@@ -13,6 +13,7 @@ $GLOBALS['app_config'] = $loadedConfig;
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/sales_order_helpers.php';
 require_once __DIR__ . '/db.php';
 
 ensure_department_accounts($pdo);

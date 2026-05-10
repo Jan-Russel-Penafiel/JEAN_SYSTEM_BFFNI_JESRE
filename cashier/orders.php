@@ -19,38 +19,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$product || $quantity <= 0) {
             flash_set('error', 'Please choose a valid product and quantity.');
-        } elseif ($quantity > (int)$product['stock_qty']) {
+        } elseif ($quantity + get_cashier_open_order_product_quantity($pdo, (int)$user['id'], $productId) > (int)$product['stock_qty']) {
             flash_set('error', 'Requested quantity exceeds available stock.');
         } else {
-            $orderNo = 'SO-' . date('YmdHis') . '-' . random_int(100, 999);
-            $totalAmount = $quantity * (float)$product['price'];
-
             $pdo->beginTransaction();
             try {
-                $orderStmt = $pdo->prepare('INSERT INTO sales_orders (order_no, cashier_id, total_amount, payment_status, flow_status) VALUES (:order_no, :cashier_id, :total_amount, :payment_status, :flow_status)');
-                $orderStmt->execute([
-                    'order_no' => $orderNo,
-                    'cashier_id' => $user['id'],
-                    'total_amount' => $totalAmount,
-                    'payment_status' => 'UNPAID',
-                    'flow_status' => 'ORDER_CONFIRMED',
-                ]);
-
-                $salesOrderId = (int)$pdo->lastInsertId();
-                $itemStmt = $pdo->prepare('INSERT INTO sales_order_items (sales_order_id, product_id, quantity, unit_price, subtotal) VALUES (:sales_order_id, :product_id, :quantity, :unit_price, :subtotal)');
-                $itemStmt->execute([
-                    'sales_order_id' => $salesOrderId,
-                    'product_id' => $productId,
-                    'quantity' => $quantity,
-                    'unit_price' => $product['price'],
-                    'subtotal' => $totalAmount,
-                ]);
-
+                add_product_to_cashier_open_order($pdo, (int)$user['id'], $product, $quantity);
                 $pdo->commit();
-                flash_set('success', 'Sales order created successfully. Mark it as order complete before payment.');
+                flash_set('success', 'Product added to the current sales order. Mark it complete before payment.');
             } catch (Exception $e) {
                 $pdo->rollBack();
                 flash_set('error', 'Failed to create sales order.');
+            }
+        }
+
+        header('Location: ' . app_url('cashier/orders.php'));
+        exit;
+    }
+
+    if ($action === 'bulk_create_order') {
+        $submittedQuantities = $_POST['bulk_quantities'] ?? [];
+        $bulkProducts = [];
+        $errorMessage = '';
+
+        if (!is_array($submittedQuantities)) {
+            $submittedQuantities = [];
+        }
+
+        $productStmt = $pdo->prepare('SELECT * FROM products WHERE id = :id LIMIT 1');
+
+        foreach ($submittedQuantities as $rawProductId => $rawQuantity) {
+            $productId = (int)$rawProductId;
+            $quantity = (int)$rawQuantity;
+
+            if ($productId <= 0 || $quantity <= 0) {
+                continue;
+            }
+
+            $productStmt->execute(['id' => $productId]);
+            $product = $productStmt->fetch();
+
+            if (!$product) {
+                $errorMessage = 'One selected product no longer exists.';
+                break;
+            }
+
+            if ($quantity + get_cashier_open_order_product_quantity($pdo, (int)$user['id'], $productId) > (int)$product['stock_qty']) {
+                $errorMessage = 'Requested quantity exceeds available stock for ' . $product['product_name'] . '.';
+                break;
+            }
+
+            $product['quantity'] = $quantity;
+            $bulkProducts[] = $product;
+        }
+
+        if ($errorMessage !== '') {
+            flash_set('error', $errorMessage);
+        } elseif (!$bulkProducts) {
+            flash_set('error', 'Select at least one product quantity for bulk order.');
+        } else {
+            $pdo->beginTransaction();
+            try {
+                add_products_to_cashier_open_order($pdo, (int)$user['id'], $bulkProducts);
+                $pdo->commit();
+                flash_set('success', 'Bulk order added to one sales order. Mark it complete before payment.');
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                flash_set('error', 'Failed to create bulk order.');
             }
         }
 
@@ -114,11 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'id' => $itemId,
                 ]);
 
-                $updateOrder = $pdo->prepare('UPDATE sales_orders SET total_amount = :total_amount WHERE id = :id');
-                $updateOrder->execute([
-                    'total_amount' => $subtotal,
-                    'id' => $orderId,
-                ]);
+                recalculate_sales_order_total($pdo, $orderId);
 
                 $pdo->commit();
                 flash_set('success', 'Order updated successfully.');
@@ -159,9 +190,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $products = $pdo->query('SELECT id, sku, product_name, price, stock_qty FROM products ORDER BY product_name ASC')->fetchAll();
 
-$ordersStmt = $pdo->prepare('SELECT so.*, soi.id AS item_id, soi.quantity, soi.unit_price, soi.subtotal, p.sku, p.product_name, p.stock_qty FROM sales_orders so JOIN sales_order_items soi ON soi.sales_order_id = so.id JOIN products p ON p.id = soi.product_id WHERE so.cashier_id = :cashier_id ORDER BY so.id DESC');
+$ordersStmt = $pdo->prepare('SELECT so.*, soi.id AS item_id, soi.product_id, soi.quantity, soi.unit_price, soi.subtotal, p.sku, p.product_name, p.stock_qty FROM sales_orders so JOIN sales_order_items soi ON soi.sales_order_id = so.id JOIN products p ON p.id = soi.product_id WHERE so.cashier_id = :cashier_id ORDER BY so.id DESC, soi.id ASC');
 $ordersStmt->execute(['cashier_id' => $user['id']]);
-$orders = $ordersStmt->fetchAll();
+$orders = group_sales_order_rows($ordersStmt->fetchAll());
 
 include __DIR__ . '/../partials/header.php';
 ?>
@@ -171,7 +202,10 @@ include __DIR__ . '/../partials/header.php';
             <h2 class="text-2xl font-bold text-brand-700">Sales Orders</h2>
             <p class="text-sm text-slate-500">Review confirmed sales orders, mark them complete, and send only completed orders to payment.</p>
         </div>
-        <button data-modal-open="create-order-modal" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Create Order</button>
+        <div class="flex flex-wrap gap-2">
+            <button data-modal-open="bulk-order-modal" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Bulk Order</button>
+            <button data-modal-open="create-order-modal" class="rounded-lg bg-brand-100 px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-200">Single Product</button>
+        </div>
     </div>
 
     <section class="rounded-xl border border-brand-100 bg-white p-4 overflow-x-auto">
@@ -192,10 +226,11 @@ include __DIR__ . '/../partials/header.php';
                 <tr><td class="py-3 text-slate-500" colspan="7">No sales orders yet.</td></tr>
             <?php else: ?>
                 <?php foreach ($orders as $order): ?>
+                    <?php $orderItems = $order['items']; ?>
                     <tr class="border-b border-slate-50">
                         <td class="py-2 pr-3 font-medium text-slate-700"><?= e($order['order_no']); ?></td>
-                        <td class="py-2 pr-3"><?= e($order['sku']); ?> - <?= e($order['product_name']); ?></td>
-                        <td class="py-2 pr-3"><?= (int)$order['quantity']; ?></td>
+                        <td class="py-2 pr-3"><?= e(summarize_sales_order_items($orderItems)); ?></td>
+                        <td class="py-2 pr-3"><?= (int)array_sum(array_column($orderItems, 'quantity')); ?></td>
                         <td class="py-2 pr-3"><?= e(format_currency($order['total_amount'])); ?></td>
                         <td class="py-2 pr-3"><span class="rounded-full px-2 py-1 text-xs font-semibold <?= e(status_badge_class($order['payment_status'])); ?>"><?= e($order['payment_status']); ?></span></td>
                         <td class="py-2 pr-3">
@@ -220,6 +255,45 @@ include __DIR__ . '/../partials/header.php';
             </tbody>
         </table>
     </section>
+</div>
+
+<div id="bulk-order-modal" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
+    <div class="w-full max-w-3xl rounded-xl bg-white p-6">
+        <h3 class="text-lg font-semibold text-brand-700">Bulk Order</h3>
+        <form method="post" class="mt-4 space-y-4">
+            <input type="hidden" name="action" value="bulk_create_order">
+            <div class="max-h-[70vh] overflow-y-auto rounded-xl border border-brand-100">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-brand-50 text-left text-slate-600">
+                    <tr>
+                        <th class="px-3 py-2">Product</th>
+                        <th class="px-3 py-2 text-right">Price</th>
+                        <th class="px-3 py-2 text-right">Stock</th>
+                        <th class="px-3 py-2 text-right">Qty</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($products as $product): ?>
+                        <tr class="border-t border-brand-100">
+                            <td class="px-3 py-3">
+                                <p class="font-semibold text-slate-700"><?= e($product['sku']); ?> - <?= e($product['product_name']); ?></p>
+                            </td>
+                            <td class="px-3 py-3 text-right"><?= e(format_currency($product['price'])); ?></td>
+                            <td class="px-3 py-3 text-right"><?= (int)$product['stock_qty']; ?></td>
+                            <td class="px-3 py-3 text-right">
+                                <input type="number" min="0" max="<?= (int)$product['stock_qty']; ?>" name="bulk_quantities[<?= (int)$product['id']; ?>]" class="ml-auto w-24 rounded-lg border border-slate-200 px-3 py-2 text-right" value="0">
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" data-modal-close class="rounded-lg border border-slate-200 px-4 py-2 text-sm">Cancel</button>
+                <button type="submit" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white">Create Bulk Order</button>
+            </div>
+        </form>
+    </div>
 </div>
 
 <div id="create-order-modal" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
@@ -249,18 +323,38 @@ include __DIR__ . '/../partials/header.php';
 </div>
 
 <?php foreach ($orders as $order): ?>
+    <?php $orderItems = $order['items']; ?>
     <div id="view-order-<?= (int)$order['id']; ?>" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
-        <div class="w-full max-w-lg rounded-xl bg-white p-6">
+        <div class="w-full max-w-2xl rounded-xl bg-white p-6">
             <h3 class="text-lg font-semibold text-brand-700">View Order</h3>
             <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
                 <dt class="text-slate-500">Order #</dt><dd class="font-medium"><?= e($order['order_no']); ?></dd>
-                <dt class="text-slate-500">Product</dt><dd class="font-medium"><?= e($order['sku']); ?> - <?= e($order['product_name']); ?></dd>
-                <dt class="text-slate-500">Quantity</dt><dd class="font-medium"><?= (int)$order['quantity']; ?></dd>
-                <dt class="text-slate-500">Unit Price</dt><dd class="font-medium"><?= e(format_currency($order['unit_price'])); ?></dd>
                 <dt class="text-slate-500">Total Amount</dt><dd class="font-medium"><?= e(format_currency($order['total_amount'])); ?></dd>
                 <dt class="text-slate-500">Payment Status</dt><dd class="font-medium"><?= e($order['payment_status']); ?></dd>
                 <dt class="text-slate-500">Flow Status</dt><dd class="font-medium"><?= e($order['flow_status']); ?></dd>
             </dl>
+            <div class="mt-4 rounded-xl border border-brand-100 overflow-hidden">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-brand-50 text-slate-600">
+                    <tr>
+                        <th class="px-3 py-2 text-left">Product</th>
+                        <th class="px-3 py-2 text-right">Qty</th>
+                        <th class="px-3 py-2 text-right">Unit Price</th>
+                        <th class="px-3 py-2 text-right">Subtotal</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($orderItems as $item): ?>
+                        <tr class="border-t border-brand-100">
+                            <td class="px-3 py-3"><?= e($item['sku']); ?> - <?= e($item['product_name']); ?></td>
+                            <td class="px-3 py-3 text-right"><?= (int)$item['quantity']; ?></td>
+                            <td class="px-3 py-3 text-right"><?= e(format_currency($item['unit_price'])); ?></td>
+                            <td class="px-3 py-3 text-right font-semibold"><?= e(format_currency($item['subtotal'])); ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
             <div class="mt-5 flex justify-end">
                 <button type="button" data-modal-close class="rounded-lg border border-slate-200 px-4 py-2 text-sm">Close</button>
             </div>
@@ -268,24 +362,32 @@ include __DIR__ . '/../partials/header.php';
     </div>
 
     <div id="edit-order-<?= (int)$order['id']; ?>" data-modal class="hidden fixed inset-0 z-30 items-center justify-center bg-black/40 p-4">
-        <div class="w-full max-w-lg rounded-xl bg-white p-6">
-            <h3 class="text-lg font-semibold text-brand-700">Edit Order Quantity</h3>
-            <form method="post" class="mt-4 space-y-3">
-                <input type="hidden" name="action" value="update_order">
-                <input type="hidden" name="order_id" value="<?= (int)$order['id']; ?>">
-                <input type="hidden" name="item_id" value="<?= (int)$order['item_id']; ?>">
-                <div>
-                    <label class="text-sm text-slate-600">Quantity</label>
-                    <input type="number" min="1" max="<?= (int)$order['stock_qty']; ?>" name="quantity" value="<?= (int)$order['quantity']; ?>" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" required <?= $order['payment_status'] === 'PAID' ? 'disabled' : ''; ?>>
-                </div>
+        <div class="w-full max-w-2xl rounded-xl bg-white p-6">
+            <h3 class="text-lg font-semibold text-brand-700">Edit Order Quantities</h3>
+            <div class="mt-4 space-y-3">
+                <?php foreach ($orderItems as $item): ?>
+                    <form method="post" class="grid gap-3 rounded-lg border border-slate-100 p-3 md:grid-cols-[1fr_140px_auto] md:items-end">
+                        <input type="hidden" name="action" value="update_order">
+                        <input type="hidden" name="order_id" value="<?= (int)$order['id']; ?>">
+                        <input type="hidden" name="item_id" value="<?= (int)$item['id']; ?>">
+                        <div>
+                            <p class="text-sm font-semibold text-slate-700"><?= e($item['sku']); ?> - <?= e($item['product_name']); ?></p>
+                            <p class="text-xs text-slate-500">Unit Price: <?= e(format_currency($item['unit_price'])); ?></p>
+                        </div>
+                        <div>
+                            <label class="text-sm text-slate-600">Quantity</label>
+                            <input type="number" min="1" max="<?= (int)$item['stock_qty']; ?>" name="quantity" value="<?= (int)$item['quantity']; ?>" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" required <?= $order['payment_status'] === 'PAID' ? 'disabled' : ''; ?>>
+                        </div>
+                        <button type="submit" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white" <?= $order['payment_status'] === 'PAID' ? 'disabled' : ''; ?>>Save</button>
+                    </form>
+                <?php endforeach; ?>
                 <?php if ($order['payment_status'] === 'PAID'): ?>
                     <p class="text-xs text-rose-600">Paid orders cannot be edited.</p>
                 <?php endif; ?>
-                <div class="flex justify-end gap-2">
-                    <button type="button" data-modal-close class="rounded-lg border border-slate-200 px-4 py-2 text-sm">Cancel</button>
-                    <button type="submit" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white" <?= $order['payment_status'] === 'PAID' ? 'disabled' : ''; ?>>Save</button>
-                </div>
-            </form>
+            </div>
+            <div class="mt-5 flex justify-end">
+                <button type="button" data-modal-close class="rounded-lg border border-slate-200 px-4 py-2 text-sm">Close</button>
+            </div>
         </div>
     </div>
 
