@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $orderId = (int)($_POST['order_id'] ?? 0);
         $amountPaid = (float)($_POST['amount_paid'] ?? 0);
         $paymentMethod = trim($_POST['payment_method'] ?? 'Cash');
+        $allowedPaymentMethods = ['Cash', 'GCash', 'Maya'];
 
         $orderStmt = $pdo->prepare('SELECT * FROM sales_orders WHERE id = :order_id AND cashier_id = :cashier_id LIMIT 1');
         $orderStmt->execute([
@@ -38,6 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('error', 'Order is already paid.');
         } elseif (($order['flow_status'] ?? '') !== 'ORDER_COMPLETE') {
             flash_set('error', 'Only order-complete sales orders can be paid.');
+        } elseif (!in_array($paymentMethod, $allowedPaymentMethods, true)) {
+            flash_set('error', 'Invalid payment method selected.');
         } elseif ($amountPaid < (float)$order['total_amount']) {
             flash_set('error', 'Amount paid is less than total amount due.');
         } elseif ($insufficientStockItem) {
@@ -115,6 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $paymentId = (int)($_POST['payment_id'] ?? 0);
         $amountPaid = (float)($_POST['amount_paid'] ?? 0);
         $paymentMethod = trim($_POST['payment_method'] ?? 'Cash');
+        $allowedPaymentMethods = ['Cash', 'GCash', 'Maya'];
 
         $stmt = $pdo->prepare('SELECT p.*, so.total_amount, so.cashier_id FROM payments p JOIN sales_orders so ON so.id = p.sales_order_id WHERE p.id = :payment_id LIMIT 1');
         $stmt->execute(['payment_id' => $paymentId]);
@@ -122,6 +126,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$payment || (int)$payment['cashier_id'] !== (int)$user['id']) {
             flash_set('error', 'Payment not found.');
+        } elseif (!in_array($paymentMethod, $allowedPaymentMethods, true)) {
+            flash_set('error', 'Invalid payment method selected.');
         } elseif ($amountPaid < (float)$payment['total_amount']) {
             flash_set('error', 'Amount paid cannot be less than order total.');
         } else {
@@ -327,7 +333,6 @@ include __DIR__ . '/../partials/header.php';
                         <option value="Cash">Cash</option>
                         <option value="GCash">GCash</option>
                         <option value="Maya">Maya</option>
-                        <option value="Card">Card</option>
                     </select>
                 </div>
             </div>
@@ -358,7 +363,6 @@ include __DIR__ . '/../partials/header.php';
                         <option value="Cash">Cash</option>
                         <option value="GCash">GCash</option>
                         <option value="Maya">Maya</option>
-                        <option value="Card">Card</option>
                     </select>
                 </div>
                 <div class="flex justify-end gap-2">
@@ -402,7 +406,7 @@ include __DIR__ . '/../partials/header.php';
                 <div>
                     <label class="text-sm text-slate-600">Payment Method</label>
                     <select name="payment_method" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2">
-                        <?php foreach (['Cash', 'GCash', 'Maya', 'Card'] as $method): ?>
+                        <?php foreach (['Cash', 'GCash', 'Maya'] as $method): ?>
                             <option value="<?= e($method); ?>" <?= $payment['payment_method'] === $method ? 'selected' : ''; ?>><?= e($method); ?></option>
                         <?php endforeach; ?>
                     </select>
